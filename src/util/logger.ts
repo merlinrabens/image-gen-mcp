@@ -64,7 +64,7 @@ class Logger {
   }
 
   warn(message: string, data?: any): void {
-    if (this.shouldLog('info')) {
+    if (this.shouldLog('warn')) {
       console.error(this.formatMessage('warn', message, data));
     }
   }
