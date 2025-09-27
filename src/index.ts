@@ -15,6 +15,10 @@ import { Config } from './config.js';
 import { GenerateInputSchema, EditInputSchema, ProviderError } from './types.js';
 import { logger } from './util/logger.js';
 
+// Cleanup temp files older than 1 hour
+const TEMP_FILE_MAX_AGE_MS = 60 * 60 * 1000;
+const TEMP_FILE_PREFIX = 'mcp-image-';
+
 /**
  * MCP server for image generation
  */
@@ -103,6 +107,19 @@ class ImageGenMCPServer {
             const input = GenerateInputSchema.parse(args);
             const provider = Config.getProviderWithFallback(input.provider);
 
+            // Validate input against provider capabilities
+            const capabilities = provider.getCapabilities();
+            if (input.width && capabilities.maxWidth && input.width > capabilities.maxWidth) {
+              throw new Error(
+                `Width ${input.width} exceeds provider ${provider.name} maximum (${capabilities.maxWidth})`
+              );
+            }
+            if (input.height && capabilities.maxHeight && input.height > capabilities.maxHeight) {
+              throw new Error(
+                `Height ${input.height} exceeds provider ${provider.name} maximum (${capabilities.maxHeight})`
+              );
+            }
+
             logger.info(`Generating image with ${provider.name}`, {
               prompt: input.prompt.slice(0, 50)
             });
@@ -128,7 +145,7 @@ class ImageGenMCPServer {
                 const base64Data = img.dataUrl.split(',')[1];
                 const buffer = Buffer.from(base64Data, 'base64');
                 const hash = createHash('md5').update(buffer).digest('hex');
-                const filename = `gemini-${hash}-${Date.now()}-${idx}.${img.format || 'png'}`;
+                const filename = `${TEMP_FILE_PREFIX}${result.provider.toLowerCase()}-${hash}-${Date.now()}-${idx}.${img.format || 'png'}`;
                 const filepath = path.join(os.tmpdir(), filename);
                 await fs.writeFile(filepath, buffer);
                 return {
@@ -235,6 +252,45 @@ class ImageGenMCPServer {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
     logger.info('Image Gen MCP server started');
+
+    // Start periodic cleanup of old temp files
+    this.startTempFileCleanup();
+  }
+
+  private async cleanupOldTempFiles(): Promise<void> {
+    try {
+      const tmpDir = os.tmpdir();
+      const files = await fs.readdir(tmpDir);
+      const now = Date.now();
+
+      for (const file of files) {
+        if (file.startsWith(TEMP_FILE_PREFIX)) {
+          const filepath = path.join(tmpDir, file);
+          try {
+            const stats = await fs.stat(filepath);
+            const age = now - stats.mtimeMs;
+            if (age > TEMP_FILE_MAX_AGE_MS) {
+              await fs.unlink(filepath);
+              logger.debug(`Cleaned up old temp file: ${file}`);
+            }
+          } catch (error) {
+            // File might already be deleted, ignore
+          }
+        }
+      }
+    } catch (error) {
+      logger.warn('Failed to cleanup temp files', error);
+    }
+  }
+
+  private startTempFileCleanup(): void {
+    // Run cleanup immediately on start
+    this.cleanupOldTempFiles();
+
+    // Then run every 30 minutes
+    setInterval(() => {
+      this.cleanupOldTempFiles();
+    }, 30 * 60 * 1000);
   }
 }
 
