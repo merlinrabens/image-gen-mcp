@@ -354,6 +354,23 @@ function getFieldSchema(field: z.ZodType): any {
 // Start the server
 const server = new ImageGenMCPServer();
 
+// CRITICAL: Exit immediately when stdin closes (Claude disconnects)
+process.stdin.on('end', () => {
+  logger.info('stdin closed, exiting');
+  process.exit(0);
+});
+
+process.stdin.on('close', () => {
+  logger.info('stdin closed, exiting');
+  process.exit(0);
+});
+
+// Exit if stdout pipe breaks
+process.stdout.on('error', () => {
+  logger.info('stdout error, exiting');
+  process.exit(0);
+});
+
 // Handle graceful shutdown to prevent stale processes
 process.on('SIGINT', () => {
   logger.info('SIGINT received, shutting down gracefully');
@@ -364,6 +381,9 @@ process.on('SIGTERM', () => {
   logger.info('SIGTERM received, shutting down gracefully');
   process.exit(0);
 });
+
+// Ensure nothing keeps the process alive unnecessarily
+process.stdin.resume();
 
 server.start().catch((error) => {
   logger.error('Failed to start server', error);
