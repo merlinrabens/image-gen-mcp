@@ -8,7 +8,7 @@ import {
 import { z } from 'zod';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import * as os from 'os';
 
 import { Config } from './config.js';
@@ -17,7 +17,9 @@ import { logger } from './util/logger.js';
 
 // Cleanup temp files older than 1 hour
 const TEMP_FILE_MAX_AGE_MS = 60 * 60 * 1000;
-const TEMP_FILE_PREFIX = 'mcp-image-';
+// Make temp files unique per process to avoid collisions
+const SESSION_ID = process.env.MCP_SESSION_ID || randomUUID();
+const TEMP_FILE_PREFIX = `mcp-image-${process.pid}-${SESSION_ID.slice(0, 8)}-`;
 
 /**
  * MCP server for image generation
@@ -287,10 +289,11 @@ class ImageGenMCPServer {
     // Run cleanup immediately on start
     this.cleanupOldTempFiles();
 
-    // Then run every 30 minutes
-    setInterval(() => {
+    // Then run every 30 minutes (unref to not keep process alive)
+    const interval = setInterval(() => {
       this.cleanupOldTempFiles();
     }, 30 * 60 * 1000);
+    interval.unref();
   }
 }
 
@@ -350,6 +353,18 @@ function getFieldSchema(field: z.ZodType): any {
 
 // Start the server
 const server = new ImageGenMCPServer();
+
+// Handle graceful shutdown to prevent stale processes
+process.on('SIGINT', () => {
+  logger.info('SIGINT received, shutting down gracefully');
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  logger.info('SIGTERM received, shutting down gracefully');
+  process.exit(0);
+});
+
 server.start().catch((error) => {
   logger.error('Failed to start server', error);
   process.exit(1);
