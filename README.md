@@ -7,7 +7,8 @@ A Model Context Protocol (MCP) server for multi-provider image generation, suppo
 - **Multiple Providers**: Seamlessly switch between OpenAI, Stability, Replicate, Gemini, or Mock providers
 - **Automatic Fallback**: Intelligent fallback chain when providers fail or aren't configured
 - **Type Safety**: Full TypeScript with Zod validation
-- **MCP Compliant**: Works directly with Claude Desktop via stdio transport
+- **MCP Compliant**: Works with Claude Desktop via stdio transport
+- **Multi-Connection Support**: HTTP/WebSocket server mode for parallel connections from multiple AI agents
 - **Mock Provider**: Test immediately without API keys using gradient PNG generation
 - **Smart Error Handling**: Distinguishes between retryable and permanent errors
 
@@ -294,13 +295,61 @@ image-gen-mcp/
 │       └── gemini.ts      # Google Gemini
 ```
 
+## Multi-Connection HTTP/WebSocket Server
+
+For parallel connections from multiple AI agents, use the HTTP server mode:
+
+### Starting the Server
+
+```bash
+# Development
+npm run dev:server
+
+# Production
+npm run build
+npm run start:server
+
+# Custom port (default: 3000)
+MCP_PORT=8080 npm run start:server
+```
+
+### Server Endpoints
+
+- WebSocket: `ws://localhost:3000` - MCP protocol over WebSocket
+- Health: `http://localhost:3000/health` - Server health check
+- Info: `http://localhost:3000/info` - Server information and provider status
+
+### Configuring Clients
+
+Add to your Claude configuration for WebSocket transport:
+
+```json
+{
+  "image-gen-mcp-ws": {
+    "type": "websocket",
+    "url": "ws://localhost:3000"
+  }
+}
+```
+
+### Benefits of HTTP Server Mode
+
+- **Multiple Connections**: Serve multiple AI agents simultaneously
+- **Session Isolation**: Each connection gets its own MCP server instance
+- **Health Monitoring**: HTTP endpoints for monitoring and debugging
+- **Graceful Shutdown**: Proper cleanup on SIGTERM/SIGINT
+- **Connection Tracking**: Monitor active connections via `/info`
+
 ## Architecture Notes
 
-- **Stdio Transport**: Required by MCP spec for Claude Desktop integration
-- **Data URLs**: Images returned as base64 for direct Claude preview (warning for >5MB)
+- **Transport Options**:
+  - Stdio: Single connection, direct Claude Desktop integration
+  - WebSocket: Multiple connections, HTTP server mode
+- **Data URLs**: Images saved to temp files to avoid token limits (>2MB responses)
+- **Temp File Cleanup**: Automatic cleanup of files older than 1 hour
 - **Circuit Breaker**: Intelligent error categorization for fallback decisions
 - **Provider Pattern**: Pluggable adapters with abstract base class
-- **Minimal Dependencies**: Only essential packages for lean deployment
+- **Session Isolation**: Each WebSocket connection gets independent server instance
 
 ## Troubleshooting
 

@@ -1,0 +1,14 @@
+{
+  "image-gen-mcp-ws": {
+    "type": "websocket",
+    "url": "ws://localhost:3000",
+    "env": {
+      "GEMINI_API_KEY": "YOUR_GEMINI_API_KEY",
+      "OPENAI_API_KEY": "YOUR_OPENAI_API_KEY",
+      "STABILITY_API_KEY": "YOUR_STABILITY_API_KEY",
+      "REPLICATE_API_TOKEN": "YOUR_REPLICATE_API_TOKEN",
+      "DEFAULT_PROVIDER": "GEMINI",
+      "LOG_LEVEL": "info"
+    }
+  }
+}
