@@ -11,3 +11,10 @@ dist/
 *.swo
 coverage/
 .nyc_output/
+
+# Python
+venv/
+__pycache__/
+*.pyc
+blank_canvas*.txt
+create_blank_canvas.py
