@@ -1,11 +1,15 @@
 # Image Gen MCP Server
 
-A Model Context Protocol (MCP) server for multi-provider image generation, supporting OpenAI DALL-E, Stability AI, Replicate, Google Gemini, and a Mock provider for testing.
+A Model Context Protocol (MCP) server for multi-provider AI image generation with intelligent provider selection. Supports 9 providers including OpenAI DALL-E, Stability AI, Leonardo.AI, Fal.ai, Ideogram, Flux/BFL, Clipdrop, Google Gemini, and Replicate.
 
 ## Features
 
-- **Multiple Providers**: Seamlessly switch between OpenAI, Stability, Replicate, Gemini, or Mock providers
-- **Automatic Fallback**: Intelligent fallback chain when providers fail or aren't configured
+- **9 Image Providers**: OpenAI, Stability, Leonardo, Fal, Ideogram, BFL/Flux, Clipdrop, Gemini, Replicate
+- **Intelligent Selection**: Automatic provider selection based on use case (text, photorealistic, speed, etc.)
+- **Character Consistency**: Leonardo.AI for consistent characters across multiple images (carousels)
+- **Ultra-Fast Generation**: Fal.ai delivers images in 50-300ms
+- **Post-Processing**: Clipdrop for background removal, upscaling, and editing
+- **Automatic Fallback**: Smart fallback chain when providers fail or aren't configured
 - **Type Safety**: Full TypeScript with Zod validation
 - **MCP Compliant**: Works directly with Claude Desktop via stdio transport
 - **Mock Provider**: Test immediately without API keys using gradient PNG generation
@@ -31,11 +35,21 @@ cp .env.example .env
 
 Edit `.env` with your keys:
 ```env
+# Core providers
 OPENAI_API_KEY=sk-...
 STABILITY_API_KEY=sk-...
 REPLICATE_API_TOKEN=r8_...
 GEMINI_API_KEY=AIza...
-DEFAULT_PROVIDER=OPENAI
+
+# New cutting-edge providers
+IDEOGRAM_API_KEY=...
+BFL_API_KEY=...
+LEONARDO_API_KEY=...
+FAL_API_KEY=...
+CLIPDROP_API_KEY=...
+
+# Configuration
+DEFAULT_PROVIDER=auto  # Enable intelligent selection
 ```
 
 ### 3. Run Development Server
@@ -141,7 +155,7 @@ Generate images from text prompts.
 ```
 Request: {
   "prompt": "A serene mountain landscape at sunset",
-  "provider": "OPENAI",  // Optional
+  "provider": "auto",     // Or specify: OPENAI, LEONARDO, FAL, etc.
   "width": 1024,          // Optional
   "height": 1024,         // Optional
   "model": "dall-e-3",    // Optional
@@ -171,6 +185,16 @@ Request: {
 ```
 
 ## Provider Examples
+
+### Automatic Provider Selection
+
+Let the system choose the best provider for your use case:
+```javascript
+{
+  "prompt": "Create a logo with the text 'TechStartup 2025'",
+  "provider": "auto"  // Will select Ideogram for text rendering
+}
+```
 
 ### Mock Provider (No API Key Required)
 
@@ -240,25 +264,87 @@ For editing:
 }
 ```
 
+### Ideogram
+
+Best-in-class text rendering for logos and posters:
+```javascript
+{
+  "prompt": "A vintage poster with the text 'SUMMER FESTIVAL 2025' in bold retro typography",
+  "provider": "IDEOGRAM",
+  "model": "V_2_TURBO"
+}
+```
+
+### Leonardo.AI
+
+Character consistency for carousels and series:
+```javascript
+{
+  "prompt": "A friendly robot mascot waving hello, consistent character design",
+  "provider": "LEONARDO",
+  "model": "leonardo-diffusion-xl"
+}
+```
+
+### Fal.ai
+
+Ultra-fast generation for rapid iteration:
+```javascript
+{
+  "prompt": "Quick sketch of a product mockup",
+  "provider": "FAL",
+  "model": "fast-sdxl"  // 50-100ms generation!
+}
+```
+
+### BFL/Flux
+
+Industry-leading photorealistic quality:
+```javascript
+{
+  "prompt": "Professional headshot of a business executive in modern office",
+  "provider": "BFL",
+  "model": "flux-pro"
+}
+```
+
+### Clipdrop
+
+Advanced editing and post-processing:
+```javascript
+{
+  "prompt": "Remove background",
+  "baseImage": "data:image/png;base64,...",
+  "provider": "CLIPDROP"
+}
+```
+
 ## Provider Capabilities
 
-| Provider | Generate | Edit | Max Size | Models |
-|----------|----------|------|----------|---------|
-| Mock | ✅ | ✅ | 256×256 | mock-v1 |
-| OpenAI | ✅ | ✅ | 1792×1792 | dall-e-3, dall-e-2 |
-| Stability | ✅ | ✅ | 1536×1536 | SD3.5, SD-XL, Image Core |
-| Replicate | ✅ | ❌ | 2048×2048 | Flux, SDXL variants |
-| Gemini | ✅ | ✅ | 3072×3072 | Gemini 2.5 Flash Image |
+| Provider | Generate | Edit | Max Size | Special Features | Speed |
+|----------|----------|------|----------|------------------|-------|
+| Mock | ✅ | ✅ | 256×256 | Testing only | Instant |
+| OpenAI | ✅ | ✅ | 1792×1792 | Creative, reliable | 5-10s |
+| Stability | ✅ | ✅ | 1536×1536 | Flexible, customizable | 3-8s |
+| Replicate | ✅ | ❌ | 2048×2048 | Latest models | 5-30s |
+| Gemini | ✅ | ✅ | 3072×3072 | Natural language | 8-12s |
+| **Ideogram** | ✅ | ❌ | 1280×1280 | **Best text rendering** | 5-10s |
+| **Leonardo** | ✅ | ❌ | 1024×1024 | **Character consistency** | 10-20s |
+| **Fal** | ✅ | ❌ | 1536×1536 | **Ultra-fast (50-300ms)** | <1s |
+| **BFL/Flux** | ✅ | ✅ | 2048×2048 | **Photorealistic** | 8-15s |
+| **Clipdrop** | ✅ | ✅ | 2048×2048 | **Background removal** | 2-5s |
 
-Note: All Gemini images include a SynthID watermark. Requires Blaze pricing plan.
+Note: Gemini images include SynthID watermark. Leonardo excels at consistent characters across multiple images.
 
 ## Fallback Chain
 
 When a provider fails or isn't configured, the system automatically falls back:
 
 ```
-OPENAI → STABILITY → REPLICATE → GEMINI → MOCK
+IDEOGRAM → BFL → LEONARDO → FAL → OPENAI → STABILITY → REPLICATE → GEMINI → MOCK
 ```
+
+Or use `provider: "auto"` for intelligent selection based on your prompt content.
 
 You can override this with the `DEFAULT_PROVIDER` environment variable.
 
@@ -283,6 +369,8 @@ image-gen-mcp/
 │   ├── index.ts           # MCP server entry
 │   ├── config.ts          # Provider management
 │   ├── types.ts           # TypeScript types & Zod schemas
+│   ├── services/
+│   │   └── providerSelector.ts  # Intelligent provider selection
 │   ├── util/
 │   │   └── logger.ts      # Logging utility
 │   └── providers/
@@ -291,16 +379,79 @@ image-gen-mcp/
 │       ├── openai.ts      # OpenAI DALL-E
 │       ├── stability.ts   # Stability AI
 │       ├── replicate.ts   # Replicate
-│       └── gemini.ts      # Google Gemini
+│       ├── gemini.ts      # Google Gemini
+│       ├── ideogram.ts    # Ideogram (text rendering)
+│       ├── leonardo.ts    # Leonardo.AI (consistency)
+│       ├── fal.ts         # Fal.ai (ultra-fast)
+│       ├── bfl.ts         # Black Forest Labs Flux
+│       └── clipdrop.ts    # Clipdrop (post-processing)
 ```
 
 ## Architecture Notes
 
-- **Stdio Transport**: Required by MCP spec for Claude Desktop integration
-- **Data URLs**: Images returned as base64 for direct Claude preview (warning for >5MB)
-- **Circuit Breaker**: Intelligent error categorization for fallback decisions
+- **Stdio Transport**: Required by MCP spec for desktop integration
+- **Intelligent Selection**: Analyzes prompts to automatically choose optimal provider
+- **Use Case Mapping**: Recognizes logos, photorealistic, carousels, infographics, etc.
+- **Data URLs**: Images returned as base64 for direct preview (warning for >5MB)
+- **Circuit Breaker**: Smart error categorization for fallback decisions
 - **Provider Pattern**: Pluggable adapters with abstract base class
+- **Character Consistency**: Leonardo.AI maintains consistent characters across images
+- **Ultra-Fast Mode**: Fal.ai delivers in 50-300ms for rapid iteration
 - **Minimal Dependencies**: Only essential packages for lean deployment
+
+## Use Case Examples
+
+### Social Media Carousels
+```javascript
+// Generate consistent character across multiple slides
+const mascot1 = await generate({
+  prompt: "Friendly robot mascot introducing a product",
+  provider: "LEONARDO"
+});
+const mascot2 = await generate({
+  prompt: "Same friendly robot mascot explaining features",
+  provider: "LEONARDO"
+});
+```
+
+### Marketing Materials
+```javascript
+// Logo with text
+await generate({
+  prompt: "Modern tech startup logo with text 'InnovateCo'",
+  provider: "IDEOGRAM"
+});
+
+// Product shots
+await generate({
+  prompt: "Professional product photography of smartphone",
+  provider: "BFL"
+});
+```
+
+### Rapid Prototyping
+```javascript
+// Ultra-fast iteration
+await generate({
+  prompt: "Quick wireframe sketch of mobile app",
+  provider: "FAL"  // Returns in 50-300ms!
+});
+```
+
+### Post-Processing Pipeline
+```javascript
+// Generate then edit
+const image = await generate({
+  prompt: "Product on white background",
+  provider: "auto"
+});
+
+const transparent = await edit({
+  prompt: "Remove background",
+  baseImage: image.dataUrl,
+  provider: "CLIPDROP"
+});
+```
 
 ## Troubleshooting
 
