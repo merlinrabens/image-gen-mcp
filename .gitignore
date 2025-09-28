@@ -2,6 +2,7 @@ node_modules/
 dist/
 .env
 .env.local
+.mcp.json
 *.log
 .DS_Store
 .vscode/
