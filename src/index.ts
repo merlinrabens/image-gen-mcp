@@ -198,7 +198,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'image.generate': {
         const input = GenerateInputSchema.parse(args);
-        const provider = Config.getProviderWithFallback(input.provider);
+        const provider = Config.getProviderWithFallback(input.provider, input.prompt);
 
         // Validate input against provider capabilities
         const capabilities = provider.getCapabilities();
@@ -293,7 +293,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'image.edit': {
         const input = EditInputSchema.parse(args);
-        const provider = Config.getProviderWithFallback(input.provider);
+        const provider = Config.getProviderWithFallback(input.provider, input.prompt);
 
         logger.info(`Editing image with ${provider.name}`, {
           prompt: input.prompt.slice(0, 50)
