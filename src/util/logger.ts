@@ -51,15 +51,17 @@ class Logger {
     return sanitized;
   }
 
-  debug(message: string, data?: any): void {
+  debug(_message: string, _data?: any): void {
     if (this.shouldLog('debug')) {
-      console.error(this.formatMessage('debug', message, data));
+      // Debug should not output anything unless explicitly enabled
+      // Never write to stdout/stderr during normal operation
     }
   }
 
-  info(message: string, data?: any): void {
+  info(_message: string, _data?: any): void {
     if (this.shouldLog('info')) {
-      console.error(this.formatMessage('info', message, data));
+      // Info should not output anything to avoid polluting stdio
+      // Only warnings and errors should go to stderr
     }
   }
 

@@ -1,4 +1,5 @@
-import 'dotenv/config';
+// Remove dotenv/config as it can pollute stdout
+// Environment variables should be passed via Claude's config
 import { ImageProvider } from './providers/base.js';
 import { MockProvider } from './providers/mock.js';
 import { OpenAIProvider } from './providers/openai.js';
@@ -6,47 +7,61 @@ import { StabilityProvider } from './providers/stability.js';
 import { ReplicateProvider } from './providers/replicate.js';
 import { GeminiProvider } from './providers/gemini.js';
 import { ProviderName, ProviderError } from './types.js';
-import { logger } from './util/logger.js';
 
 /**
  * Provider factory and configuration management
  */
 export class Config {
   private static providers: Map<ProviderName, ImageProvider> = new Map();
-  private static initialized = false;
 
   /**
-   * Initialize all providers
+   * Lazy create a provider only when needed
    */
-  static initialize(): void {
-    if (this.initialized) return;
+  private static createProvider(name: ProviderName): ImageProvider | undefined {
+    const existing = this.providers.get(name);
+    if (existing) return existing;
 
-    // Register all providers
-    this.providers.set('MOCK', new MockProvider());
-    this.providers.set('OPENAI', new OpenAIProvider());
-    this.providers.set('STABILITY', new StabilityProvider());
-    this.providers.set('REPLICATE', new ReplicateProvider());
-    this.providers.set('GEMINI', new GeminiProvider());
+    let provider: ImageProvider | undefined;
+    switch (name) {
+      case 'MOCK':
+        provider = new MockProvider();
+        break;
+      case 'OPENAI':
+        provider = new OpenAIProvider();
+        break;
+      case 'STABILITY':
+        provider = new StabilityProvider();
+        break;
+      case 'REPLICATE':
+        provider = new ReplicateProvider();
+        break;
+      case 'GEMINI':
+        provider = new GeminiProvider();
+        break;
+    }
 
-    this.initialized = true;
-    logger.info('Providers initialized', {
-      configured: this.getConfiguredProviders()
-    });
+    if (provider) {
+      this.providers.set(name, provider);
+    }
+    return provider;
   }
 
   /**
    * Get a provider by name
    */
   static getProvider(name: string): ImageProvider | undefined {
-    this.initialize();
-    return this.providers.get(name.toUpperCase() as ProviderName);
+    return this.createProvider(name.toUpperCase() as ProviderName);
   }
 
   /**
    * Get all registered providers
    */
   static getAllProviders(): Map<ProviderName, ImageProvider> {
-    this.initialize();
+    // Create all providers lazily
+    const allNames: ProviderName[] = ['MOCK', 'OPENAI', 'STABILITY', 'REPLICATE', 'GEMINI'];
+    for (const name of allNames) {
+      this.createProvider(name);
+    }
     return this.providers;
   }
 
@@ -54,11 +69,12 @@ export class Config {
    * Get list of configured providers
    */
   static getConfiguredProviders(): ProviderName[] {
-    this.initialize();
     const configured: ProviderName[] = [];
+    const allNames: ProviderName[] = ['MOCK', 'OPENAI', 'STABILITY', 'REPLICATE', 'GEMINI'];
 
-    for (const [name, provider] of this.providers) {
-      if (provider.isConfigured()) {
+    for (const name of allNames) {
+      const provider = this.createProvider(name);
+      if (provider?.isConfigured()) {
         configured.push(name);
       }
     }
@@ -70,8 +86,6 @@ export class Config {
    * Get default provider based on env or fallback chain
    */
   static getDefaultProvider(): ImageProvider {
-    this.initialize();
-
     // Check env variable first
     const envDefault = process.env.DEFAULT_PROVIDER;
     if (envDefault) {
@@ -86,7 +100,6 @@ export class Config {
           false
         );
       }
-      logger.debug(`Default provider ${envDefault} not configured, falling back`);
     }
 
     // If fallback is disabled, throw error
@@ -102,23 +115,20 @@ export class Config {
     const fallbackChain: ProviderName[] = ['OPENAI', 'STABILITY', 'REPLICATE', 'GEMINI', 'MOCK'];
 
     for (const name of fallbackChain) {
-      const provider = this.providers.get(name);
+      const provider = this.createProvider(name);
       if (provider?.isConfigured()) {
-        logger.debug(`Using ${name} as default provider`);
         return provider;
       }
     }
 
     // Mock is always available
-    return this.providers.get('MOCK')!;
+    return this.createProvider('MOCK')!;
   }
 
   /**
    * Get provider with fallback support
    */
   static getProviderWithFallback(requestedName?: string): ImageProvider {
-    this.initialize();
-
     if (requestedName) {
       const provider = this.getProvider(requestedName);
       if (provider) {
@@ -132,7 +142,7 @@ export class Config {
             false
           );
         }
-        logger.warn(`Provider ${requestedName} not configured, using fallback`);
+        // Don't log to avoid stdout/stderr pollution
       } else {
         if (process.env.DISABLE_FALLBACK === 'true') {
           throw new ProviderError(
@@ -141,7 +151,7 @@ export class Config {
             false
           );
         }
-        logger.warn(`Unknown provider ${requestedName}, using fallback`);
+        // Don't log to avoid stdout/stderr pollution
       }
     }
 
@@ -172,16 +182,19 @@ export class Config {
     requiredEnvVars: string[];
     capabilities: ReturnType<ImageProvider['getCapabilities']>;
   }> {
-    this.initialize();
     const status = [];
+    const allNames: ProviderName[] = ['MOCK', 'OPENAI', 'STABILITY', 'REPLICATE', 'GEMINI'];
 
-    for (const [name, provider] of this.providers) {
-      status.push({
-        name,
-        configured: provider.isConfigured(),
-        requiredEnvVars: provider.getRequiredEnvVars(),
-        capabilities: provider.getCapabilities()
-      });
+    for (const name of allNames) {
+      const provider = this.createProvider(name);
+      if (provider) {
+        status.push({
+          name,
+          configured: provider.isConfigured(),
+          requiredEnvVars: provider.getRequiredEnvVars(),
+          capabilities: provider.getCapabilities()
+        });
+      }
     }
 
     return status;
