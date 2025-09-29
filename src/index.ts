@@ -308,11 +308,32 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         const result = await provider.edit(input);
 
+        // Save images to temp directory to avoid huge responses (same as generate)
+        const savedImages = await Promise.all(result.images.map(async (img, idx) => {
+          const base64Data = img.dataUrl.split(',')[1];
+          const buffer = Buffer.from(base64Data, 'base64');
+          const hash = createHash('md5').update(buffer).digest('hex');
+          const filename = `${TEMP_FILE_PREFIX}${result.provider.toLowerCase()}-edit-${hash}-${Date.now()}-${idx}.${img.format || 'png'}`;
+          const filepath = path.join(os.tmpdir(), filename);
+          await fs.writeFile(filepath, buffer);
+          return {
+            path: filepath,
+            format: img.format,
+            size: buffer.length
+          };
+        }));
+
         return {
           content: [
             {
               type: 'text',
-              text: JSON.stringify(result, null, 2)
+              text: JSON.stringify({
+                images: savedImages,
+                provider: result.provider,
+                model: result.model,
+                warnings: result.warnings,
+                note: 'Images saved to disk. Files contain the edited results.'
+              }, null, 2)
             }
           ]
         };
