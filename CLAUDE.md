@@ -1,339 +1,359 @@
-# Claude Desktop Integration Guide
+# Image Gen MCP Server - Technical Reference
 
-This guide provides comprehensive instructions for integrating the Image Gen MCP server with Claude Desktop.
+## Project Overview
+MCP (Model Context Protocol) server providing unified image generation across 9 AI providers with intelligent selection, fallback chains, and enterprise-grade security.
 
-## Quick Start
+## Architecture
 
-### 1. Prerequisites
+### Core Design Principles
+1. **Provider Abstraction**: All providers inherit from `ImageProvider` base class
+2. **Fail-Safe Operation**: Automatic fallback chain when providers fail
+3. **Security First**: Input validation, rate limiting, resource cleanup
+4. **Performance Optimized**: Caching, connection pooling, O(n) algorithms
+5. **Type Safety**: Full TypeScript with Zod runtime validation
 
-- Node.js 18+ installed
-- Claude Desktop application
-- At least one API key from supported providers
-
-### 2. Installation
-
-```bash
-# Clone the repository
-git clone https://github.com/merlinrabens/image-gen-mcp.git
-cd image-gen-mcp
-
-# Install dependencies
-npm install
-
-# Build the project
-npm run build
+### Directory Structure
+```
+src/
+├── index.ts                 # MCP server entry, tool registration
+├── config.ts               # Provider management, lazy initialization
+├── types.ts                # TypeScript types & Zod schemas
+├── providers/
+│   ├── base.ts            # Abstract base class with security/performance
+│   ├── mock.ts            # Testing provider (no API needed)
+│   ├── openai.ts          # DALL-E integration
+│   ├── stability.ts       # Stable Diffusion
+│   ├── leonardo.ts        # Character consistency
+│   ├── ideogram.ts        # Text rendering specialist
+│   ├── bfl.ts            # Black Forest Labs (Flux)
+│   ├── fal.ts            # Ultra-fast generation
+│   ├── clipdrop.ts       # Post-processing
+│   ├── replicate.ts      # Open model access
+│   └── gemini.ts         # Google multimodal
+├── services/
+│   └── providerSelector.ts # O(n) intelligent selection
+├── types/
+│   └── api-responses.ts   # Provider API response types
+└── util/
+    └── logger.ts          # Structured logging
 ```
 
-### 3. Configure Claude Desktop
+## Provider Implementation Guide
 
-Edit your Claude Desktop configuration file:
+### Adding a New Provider
 
-**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+1. **Create Provider Class** (`src/providers/newprovider.ts`):
+```typescript
+import { ImageProvider } from './base.js';
 
-#### Option 1: Direct API Key Configuration (Recommended)
+export class NewProvider extends ImageProvider {
+  readonly name = 'NEWPROVIDER';
+  private apiKey: string | undefined;
 
-```json
-{
-  "mcpServers": {
-    "image-gen-mcp": {
-      "command": "node",
-      "args": ["dist/index.js"],
-      "cwd": "/absolute/path/to/image-gen-mcp",
-      "env": {
-        "OPENAI_API_KEY": "sk-...",
-        "STABILITY_API_KEY": "sk-...",
-        "REPLICATE_API_TOKEN": "r8_...",
-        "GEMINI_API_KEY": "AIza...",
-        "LEONARDO_API_KEY": "...",
-        "IDEOGRAM_API_KEY": "...",
-        "BFL_API_KEY": "...",
-        "FAL_API_KEY": "...",
-        "CLIPDROP_API_KEY": "...",
-        "DEFAULT_PROVIDER": "auto",
-        "LOG_LEVEL": "info"
+  constructor() {
+    super();
+    this.apiKey = process.env.NEWPROVIDER_API_KEY;
+  }
+
+  isConfigured(): boolean {
+    return this.validateApiKey(this.apiKey);
+  }
+
+  getRequiredEnvVars(): string[] {
+    return ['NEWPROVIDER_API_KEY'];
+  }
+
+  async generate(input: GenerateInput): Promise<ProviderResult> {
+    // 1. Validate inputs
+    this.validatePrompt(input.prompt);
+
+    // 2. Check rate limit
+    await this.checkRateLimit();
+
+    // 3. Check cache
+    const cacheKey = this.generateCacheKey(input);
+    const cached = this.getCachedResult(cacheKey);
+    if (cached) return cached;
+
+    // 4. Execute with retry
+    return this.executeWithRetry(async () => {
+      const controller = this.createTimeout(30000);
+      try {
+        // API call here
+        const result = { /* ... */ };
+        this.cacheResult(cacheKey, result);
+        return result;
+      } finally {
+        this.cleanupController(controller);
       }
-    }
+    });
   }
 }
 ```
 
-#### Option 2: Using .env File
-
-First, create a `.env` file in the project root:
-
-```bash
-cp .env.example .env
-# Edit .env with your API keys
+2. **Register in Config** (`src/config.ts`):
+```typescript
+// Add to imports
+const providers = {
+  // ...existing
+  NEWPROVIDER: () => new NewProvider()
+};
 ```
 
-Then configure Claude Desktop:
-
-```json
-{
-  "mcpServers": {
-    "image-gen-mcp": {
-      "command": "node",
-      "args": ["dist/index.js"],
-      "cwd": "/absolute/path/to/image-gen-mcp"
-    }
-  }
+3. **Add API Response Types** (`src/types/api-responses.ts`):
+```typescript
+export interface NewProviderResponse {
+  // Define the API response structure
 }
 ```
 
-#### Option 3: Development Mode with TypeScript
+4. **Add Tests** (`tests/providers.test.ts`):
+```typescript
+describe('NewProvider', () => {
+  // Test configuration, generation, error handling
+});
+```
 
-```json
-{
-  "mcpServers": {
-    "image-gen-mcp": {
-      "command": "npm",
-      "args": ["run", "dev"],
-      "cwd": "/absolute/path/to/image-gen-mcp",
-      "env": {
-        "OPENAI_API_KEY": "sk-...",
-        "DEFAULT_PROVIDER": "auto"
-      }
-    }
-  }
+5. **Update Provider Selector** if it has special capabilities
+
+## Critical Security Patterns
+
+### Always Validate Input
+```typescript
+// Buffer size check (10MB max)
+if (buffer.length > MAX_IMAGE_SIZE) {
+  throw new ProviderError('Image too large', this.name, false);
+}
+
+// API key validation
+if (!this.validateApiKey(this.apiKey)) {
+  throw new ProviderError('Invalid API key', this.name, false);
+}
+
+// Prompt validation
+this.validatePrompt(input.prompt);
+```
+
+### Resource Management
+```typescript
+// Always use try/finally for cleanup
+const controller = this.createTimeout(30000);
+try {
+  // Do work
+} finally {
+  this.cleanupController(controller);
 }
 ```
 
-### 4. Restart Claude Desktop
-
-After updating the configuration, restart Claude Desktop for changes to take effect.
-
-### 5. Verify Connection
-
-In Claude, type:
-```
-Use the health.ping tool to check if the image generation server is working
+### Error Categorization
+```typescript
+// Mark errors as retryable or permanent
+throw new ProviderError(message, this.name, isRetryable);
 ```
 
-## Available Commands in Claude
+## Performance Patterns
 
-### Check Server Health
-```
-Check if the image generation server is running
-```
+### Caching Strategy
+- Cache key: JSON stringify of prompt + provider + dimensions
+- TTL: 5 minutes
+- Auto-cleanup when cache > 100 entries
 
-### List Available Providers
-```
-Show me which image generation providers are configured
-```
+### Rate Limiting
+- 10 requests per minute per provider
+- Tracked in memory with sliding window
+- Returns 429-like error when exceeded
 
-### Generate an Image
-```
-Generate an image of a serene mountain landscape at sunset
-```
-
-### Generate with Specific Provider
-```
-Use DALL-E to create an oil painting of a robot reading a book
+### Retry Logic
+```typescript
+// Exponential backoff with jitter
+const delay = Math.min(INITIAL_DELAY * Math.pow(2, attempt), 10000);
+await new Promise(r => setTimeout(r, delay + Math.random() * 500));
 ```
 
-### Generate Text-Heavy Images
-```
-Use Ideogram to create a logo for a tech startup called "NeuralNexus"
+### Provider Selection Optimization
+- Pre-built keyword index for O(n) complexity
+- Cached provider instances (lazy initialization)
+- Fallback chain: OPENAI → STABILITY → REPLICATE → GEMINI → MOCK
+
+## Testing Strategy
+
+### Test Environment
+- Use `.env.test` for test configuration
+- All API calls must be mocked (no real requests)
+- Test keys start with "test-" prefix
+
+### Mock Patterns
+```typescript
+// Mock fetch
+global.fetch = vi.fn().mockResolvedValueOnce({
+  ok: true,
+  json: async () => mockResponse
+});
+
+// Mock undici
+vi.mock('undici', () => ({
+  request: vi.fn().mockResolvedValueOnce({
+    statusCode: 200,
+    body: { json: async () => mockResponse }
+  })
+}));
 ```
 
-### Fast Generation
-```
-Use Fal to quickly generate a concept art sketch
-```
+### Test Coverage Requirements
+- Security features (buffer validation, API keys)
+- Performance features (caching, rate limiting)
+- Error handling (retries, fallbacks)
+- Provider-specific features
 
-### Edit an Image
-```
-[Attach an image]
-Remove the background from this image
-```
+## Common Patterns
 
-## Provider Selection Guide
+### Async Polling (BFL, Leonardo, Fal)
+```typescript
+// Submit job
+const { id } = await submitGeneration();
 
-The server automatically selects the best provider based on your prompt:
-
-| Use Case | Auto-Selected Provider | Keywords Detected |
-|----------|----------------------|-------------------|
-| Logos & Text | Ideogram | logo, text, typography, poster |
-| Character Series | Leonardo | character, consistent, series |
-| Fast Generation | Fal | quick, fast, rapid, draft |
-| Photorealistic | BFL/Flux | photorealistic, ultra-realistic, 8k |
-| Background Removal | Clipdrop | remove background, transparent |
-| Creative Art | OpenAI | oil painting, artistic, creative |
-| General Purpose | Stability | (default fallback) |
-
-## Advanced Usage
-
-### Specify Model
-```
-Generate an image using dall-e-3 model: a futuristic city
-```
-
-### Control Dimensions
-```
-Create a 1792x1024 panoramic image of a beach sunset
-```
-
-### Use Seed for Reproducibility
-```
-Generate an image with seed 12345: abstract geometric patterns
-```
-
-### Fallback Chain
-When a provider fails, the system automatically falls back:
-```
-OPENAI → STABILITY → REPLICATE → GEMINI → MOCK
-```
-
-To disable fallback:
-```json
-"env": {
-  "DISABLE_FALLBACK": "true"
+// Poll with exponential backoff
+while (true) {
+  const status = await checkStatus(id);
+  if (status === 'COMPLETE') return result;
+  if (status === 'FAILED') throw error;
+  await sleep(delay);
+  delay = Math.min(delay * 1.5, maxDelay);
 }
 ```
 
-## Security Features
-
-The server includes comprehensive security measures:
-
-- **Buffer Size Validation**: 10MB maximum image size
-- **API Key Validation**: Detects and rejects placeholder keys
-- **Prompt Sanitization**: 4000 character limit
-- **Rate Limiting**: 10 requests per minute per provider
-- **Resource Cleanup**: Proper memory management
-
-## Performance Optimizations
-
-- **Response Caching**: 5-minute cache for identical requests
-- **Exponential Backoff**: Smart retry logic for failures
-- **Connection Pooling**: Efficient resource usage
-- **O(n) Provider Selection**: Optimized keyword matching
-
-## Troubleshooting
-
-### "Provider not configured"
-- Ensure the required API key is set in your configuration
-- Check that the key is not a placeholder value
-- Verify the key starts with the correct prefix (e.g., `sk-` for OpenAI)
-
-### "Rate limit exceeded"
-- Wait 60 seconds before making more requests
-- The server enforces 10 requests per minute per provider
-
-### "Image size exceeds maximum"
-- Images larger than 10MB are rejected for security
-- Consider using external storage for large images
-
-### Connection Issues
-1. Check Claude Desktop logs:
-   - macOS: `~/Library/Logs/Claude/`
-   - Windows: `%APPDATA%\Claude\logs\`
-
-2. Test the server directly:
-   ```bash
-   npm run dev
-   ```
-
-3. Verify the configuration path is absolute, not relative
-
-### Large Image Warnings
-- Images over 5MB trigger warnings
-- Consider using URLs instead of base64 for large images
-
-## Testing
-
-The project includes comprehensive tests:
-
-```bash
-# Run all tests
-npm test
-
-# Run with coverage
-npm run test:coverage
-
-# Run specific test suite
-npm test -- providers.test.ts
+### Image Download Pattern
+```typescript
+// Download from URL and convert to data URL
+const response = await fetch(imageUrl);
+const buffer = Buffer.from(await response.arrayBuffer());
+return this.bufferToDataUrl(buffer, 'image/png');
 ```
 
-All 49 tests should pass, covering:
-- Security features
-- Performance optimizations
-- Provider functionality
-- Error handling
-- Resource management
+### Provider-Specific Headers
+```typescript
+// Each provider has different auth patterns
+headers: {
+  'Authorization': `Bearer ${apiKey}`,      // OpenAI, Replicate
+  'X-Api-Key': apiKey,                      // Stability
+  'Api-Key': apiKey,                        // Ideogram
+  'X-Key': apiKey,                          // BFL
+  'api-key': apiKey                         // Leonardo
+}
+```
 
 ## Environment Variables
 
-| Variable | Description | Required | Default |
-|----------|-------------|----------|---------|
-| `OPENAI_API_KEY` | OpenAI API key | No | - |
-| `STABILITY_API_KEY` | Stability AI key | No | - |
-| `LEONARDO_API_KEY` | Leonardo.ai key | No | - |
-| `IDEOGRAM_API_KEY` | Ideogram key | No | - |
-| `BFL_API_KEY` | Black Forest Labs key | No | - |
-| `FAL_API_KEY` | Fal.ai key | No | - |
-| `CLIPDROP_API_KEY` | Clipdrop key | No | - |
-| `REPLICATE_API_TOKEN` | Replicate token | No | - |
-| `GEMINI_API_KEY` | Google Gemini key | No | - |
-| `DEFAULT_PROVIDER` | Default provider | No | `auto` |
-| `DISABLE_FALLBACK` | Disable fallback chain | No | `false` |
-| `LOG_LEVEL` | Logging level | No | `info` |
+### Required for Each Provider
+- `OPENAI_API_KEY`: sk-... format
+- `STABILITY_API_KEY`: sk-... format
+- `LEONARDO_API_KEY`: custom format
+- `IDEOGRAM_API_KEY`: custom format
+- `BFL_API_KEY`: custom format
+- `FAL_API_KEY`: custom format
+- `CLIPDROP_API_KEY`: custom format
+- `REPLICATE_API_TOKEN`: r8_... format
+- `GEMINI_API_KEY`: AIza... format
 
-## Provider Capabilities
+### Configuration Options
+- `DEFAULT_PROVIDER`: Provider name or "auto" (default: "auto")
+- `DISABLE_FALLBACK`: "true" to disable fallback chain
+- `LOG_LEVEL`: "debug" | "info" | "warn" | "error"
 
-| Provider | Best For | Speed | Max Resolution | Unique Features |
-|----------|----------|-------|----------------|-----------------|
-| **OpenAI** | Creative, versatile | Medium | 1792×1792 | DALL-E 3 quality |
-| **Stability** | Photorealistic | Medium | 1536×1536 | Fine control |
-| **Leonardo** | Character series | Medium | 1536×1536 | Consistency |
-| **Ideogram** | Text & logos | Medium | 2048×2048 | Perfect text |
-| **BFL/Flux** | Ultra-realistic | Slow | 2048×2048 | Highest quality |
-| **Fal** | Quick drafts | Ultra-fast | 1920×1440 | 50-300ms |
-| **Clipdrop** | Editing | Fast | 2048×2048 | Background removal |
-| **Replicate** | Open models | Variable | 2048×2048 | Model variety |
-| **Gemini** | Multimodal | Medium | 3072×3072 | Understanding |
+## MCP Protocol Specifics
 
-## Examples
-
-### Logo Design
-```
-Create a minimalist logo for an AI startup using Ideogram
+### Tool Registration
+Tools are registered in `index.ts`:
+```typescript
+server.setRequestHandler(ListToolsRequestSchema, async () => ({
+  tools: [
+    {
+      name: 'image.generate',
+      description: 'Generate images from text prompts',
+      inputSchema: zodToJsonSchema(GenerateInputSchema)
+    }
+  ]
+}));
 ```
 
-### Character Consistency
-```
-Generate a consistent character in 3 different poses using Leonardo
-```
+### Stdio Transport
+- Required for Claude Desktop integration
+- No console.log/error allowed (breaks JSON-RPC)
+- All logging through logger utility to stderr
 
-### Quick Concept Art
-```
-Quickly sketch a sci-fi spaceship design using Fal
-```
+### Response Format
+- Images returned as data URLs (base64)
+- Warning for images > 5MB
+- Include provider and model in response
 
-### Background Removal
-```
-[Attach image]
-Remove the background and make it transparent using Clipdrop
-```
+## Known Issues & Gotchas
 
-### Photorealistic
-```
-Create an ultra-realistic 8K photo of a mountain lake using Flux
-```
+1. **Undici vs Fetch**: Some providers use undici for better performance
+2. **Test Environment**: Must set VITEST env var for test key validation
+3. **Async Generation**: BFL, Leonardo, Fal require polling
+4. **Rate Limits**: Each provider has different limits (not standardized)
+5. **Image Formats**: Most providers return PNG, some JPEG
+6. **Timeout Variance**: Gemini needs 60s, others 30s
 
-## Contributing
+## Debugging Tips
 
-When contributing, ensure:
-1. All tests pass: `npm test`
-2. Types are correct: `npm run typecheck`
-3. Code is built: `npm run build`
+1. **Enable Debug Logging**: Set `LOG_LEVEL=debug`
+2. **Test Single Provider**: Set `DEFAULT_PROVIDER` and `DISABLE_FALLBACK=true`
+3. **Check Claude Logs**: `~/Library/Logs/Claude/` (macOS)
+4. **Test Directly**: `npm run dev` then use the MCP inspector
 
-## Support
+## Performance Profiling
 
-For issues or questions:
-- GitHub Issues: https://github.com/merlinrabens/image-gen-mcp/issues
-- Documentation: See README.md for technical details
+### Bottlenecks to Watch
+- Provider selection: Now O(n) after optimization
+- Image encoding: Base64 is memory intensive
+- Polling intervals: Balance speed vs API limits
+- Cache size: Monitor memory usage
 
-## License
+### Optimization Opportunities
+- Stream large images instead of base64
+- Implement provider health checks
+- Add request queuing for rate limits
+- Consider Redis for distributed caching
 
-MIT
+## Future Enhancements
+
+### Potential Features
+- [ ] Batch generation support
+- [ ] Image-to-image for all providers
+- [ ] Webhook support for async generation
+- [ ] Provider health monitoring dashboard
+- [ ] Cost tracking and optimization
+- [ ] Custom model fine-tuning support
+- [ ] Distributed rate limiting
+- [ ] S3/CDN integration for large images
+
+### Architecture Improvements
+- [ ] Event-driven architecture for async ops
+- [ ] Provider plugin system
+- [ ] GraphQL API alongside MCP
+- [ ] Kubernetes deployment ready
+- [ ] Prometheus metrics export
+
+## Release Process
+
+1. Run full test suite: `npm test`
+2. Type check: `npm run typecheck`
+3. Build: `npm run build`
+4. Update version in package.json
+5. Update README.md with changes
+6. Tag release: `git tag v1.x.x`
+7. Push: `git push --tags`
+
+## Code Review Checklist
+
+- [ ] Input validation implemented
+- [ ] Rate limiting checked
+- [ ] Caching utilized
+- [ ] Retry logic with backoff
+- [ ] Resource cleanup (AbortController)
+- [ ] Error categorization (retryable)
+- [ ] Tests written and passing
+- [ ] Types properly defined
+- [ ] No console.log statements
+- [ ] Documentation updated
