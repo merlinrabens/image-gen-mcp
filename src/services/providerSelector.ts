@@ -103,57 +103,67 @@ const useCaseMapping: Record<string, UseCase> = {
   }
 };
 
-/**
- * Provider capabilities for matching
- * TODO: Use for advanced matching in future versions
- */
-// const providerStrengths: Record<string, string[]> = {
-//   'IDEOGRAM': ['text', 'logo', 'poster', 'typography'],
-//   'BFL': ['photorealistic', 'high-quality', 'professional', 'raw'],
-//   'LEONARDO': ['character-consistency', 'training', 'artistic', 'anime'],
-//   'FAL': ['ultra-fast', 'real-time', 'scalable'],
-//   'CLIPDROP': ['editing', 'background-removal', 'post-processing'],
-//   'DALLE': ['versatile', 'clean', 'technical', 'ui'],
-//   'STABLE': ['flexible', 'customizable', '3d', 'photorealistic'],
-//   'GEMINI': ['multimodal', 'understanding', 'technical'],
-//   'REPLICATE': ['models', 'variety', 'custom'],
-//   'TOGETHER': ['open-source', 'variety', 'cost-effective'],
-//   'OPENAI': ['versatile', 'safe', 'consistent'],
-//   'LEONARDO': ['game-assets', 'control', 'textures']
-// };
 
-/**
- * Analyze prompt to detect use case
- */
-export function analyzePrompt(prompt: string): { useCase: string; confidence: number } | null {
-  const lower = prompt.toLowerCase();
-  let bestMatch: { useCase: string; confidence: number; score: number } | null = null;
+// Pre-compiled keyword search for performance
+const keywordToUseCases = new Map<string, Set<string>>();
 
-  for (const [useCase, config] of Object.entries(useCaseMapping)) {
-    let score = 0;
-    let matchedKeywords = 0;
-
-    // Check for keyword matches
-    for (const keyword of config.keywords) {
-      if (lower.includes(keyword)) {
-        score += keyword.length; // Longer keywords = more specific = higher score
-        matchedKeywords++;
+// Build reverse index for O(1) keyword lookups
+function buildKeywordIndex(): void {
+  if (keywordToUseCases.size === 0) {
+    for (const [useCase, config] of Object.entries(useCaseMapping)) {
+      for (const keyword of config.keywords) {
+        if (!keywordToUseCases.has(keyword)) {
+          keywordToUseCases.set(keyword, new Set());
+        }
+        keywordToUseCases.get(keyword)!.add(useCase);
       }
     }
+  }
+}
 
-    if (matchedKeywords > 0) {
-      // Calculate confidence based on matches and keyword specificity
-      // const avgKeywordLength = score / matchedKeywords; // TODO: Use for weighted scoring
-      const matchRatio = matchedKeywords / config.keywords.length;
-      const finalConfidence = config.confidence * (0.5 + 0.5 * matchRatio);
+/**
+ * Analyze prompt to detect use case with optimized O(n) complexity
+ */
+export function analyzePrompt(prompt: string): { useCase: string; confidence: number } | null {
+  // Handle empty or whitespace-only prompts
+  if (!prompt || !prompt.trim()) {
+    return null;
+  }
 
-      if (!bestMatch || score > bestMatch.score) {
-        bestMatch = {
-          useCase,
-          confidence: finalConfidence,
-          score
-        };
+  // Build index on first use
+  buildKeywordIndex();
+
+  const lower = prompt.toLowerCase();
+  const words = lower.split(/\s+/);
+  const useCaseScores = new Map<string, { score: number; matchedKeywords: number }>();
+
+  // Check for exact keyword matches in the full prompt (not just words)
+  // This is more accurate for compound keywords like "remove background"
+  for (const [keyword, useCases] of keywordToUseCases.entries()) {
+    if (lower.includes(keyword)) {
+      for (const useCase of useCases) {
+        const current = useCaseScores.get(useCase) || { score: 0, matchedKeywords: 0 };
+        current.score += keyword.length * (keyword.split(' ').length); // Weight multi-word keywords higher
+        current.matchedKeywords++;
+        useCaseScores.set(useCase, current);
       }
+    }
+  }
+
+  // Find best match
+  let bestMatch: { useCase: string; confidence: number; score: number } | null = null;
+
+  for (const [useCase, scoreData] of useCaseScores.entries()) {
+    const config = useCaseMapping[useCase];
+    const matchRatio = scoreData.matchedKeywords / config.keywords.length;
+    const finalConfidence = config.confidence * (0.5 + 0.5 * matchRatio);
+
+    if (!bestMatch || scoreData.score > bestMatch.score) {
+      bestMatch = {
+        useCase,
+        confidence: finalConfidence,
+        score: scoreData.score
+      };
     }
   }
 
@@ -172,7 +182,11 @@ export function selectProvider(
   prompt: string,
   availableProviders: string[],
   explicitProvider?: string
-): string {
+): string | undefined {
+  // Handle empty provider list
+  if (!availableProviders || availableProviders.length === 0) {
+    return undefined;
+  }
   // If explicit provider requested and available, use it
   if (explicitProvider && explicitProvider !== 'auto') {
     if (availableProviders.includes(explicitProvider)) {
@@ -232,9 +246,13 @@ export function selectProvider(
   }
 
   // Default to first available provider
-  const defaultProvider = availableProviders[0];
-  logger.info(`Using default provider: ${defaultProvider}`);
-  return defaultProvider;
+  if (availableProviders.length > 0) {
+    const defaultProvider = availableProviders[0];
+    logger.info(`Using default provider: ${defaultProvider}`);
+    return defaultProvider;
+  }
+
+  return undefined;
 }
 
 /**

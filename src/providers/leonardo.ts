@@ -61,17 +61,33 @@ export class LeonardoProvider extends ImageProvider {
   }
 
   async generate(input: GenerateInput): Promise<ProviderResult> {
-    if (!this.apiKey) {
+    // Validate API key
+    if (!this.validateApiKey(this.apiKey)) {
       throw new ProviderError(
-        'LEONARDO_API_KEY environment variable is not set',
+        'LEONARDO_API_KEY not configured or invalid',
         this.name,
         false
       );
     }
 
-    try {
-      // Create generation job
-      const createResponse = await fetch(`${this.baseUrl}/generations`, {
+    // Validate prompt
+    this.validatePrompt(input.prompt);
+
+    // Check rate limit
+    await this.checkRateLimit();
+
+    // Check cache
+    const cacheKey = this.generateCacheKey(input);
+    const cached = this.getCachedResult(cacheKey);
+    if (cached) return cached;
+
+    // Execute with retry logic
+    return this.executeWithRetry(async () => {
+      const controller = this.createTimeout(60000);
+
+      try {
+        // Create generation job
+        const createResponse = await fetch(`${this.baseUrl}/generations`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${this.apiKey}`,
@@ -120,11 +136,13 @@ export class LeonardoProvider extends ImageProvider {
         );
       }
 
-      // Poll for completion
-      let attempts = 0;
-      const maxAttempts = 60; // 60 seconds timeout
+        // Poll for completion with exponential backoff
+        let attempts = 0;
+        const maxAttempts = 30;
+        const initialDelay = 1000;
+        const maxDelay = 5000;
 
-      while (attempts < maxAttempts) {
+        while (attempts < maxAttempts) {
         const statusResponse = await fetch(
           `${this.baseUrl}/generations/${generationId}`,
           {
@@ -179,12 +197,17 @@ export class LeonardoProvider extends ImageProvider {
 
           const downloadedImages = await Promise.all(imagePromises);
 
-          return {
+          const result = {
             provider: this.name,
             model: input.model || 'leonardo-diffusion-xl',
             images: downloadedImages,
             warnings: generation.nsfw ? ['Content may be NSFW'] : undefined
           };
+
+          // Cache successful result
+          this.cacheResult(cacheKey, result);
+
+          return result;
         } else if (generation?.status === 'FAILED') {
           throw new ProviderError(
             'Generation failed',
@@ -193,31 +216,35 @@ export class LeonardoProvider extends ImageProvider {
           );
         }
 
-        // Wait 1 second before next poll
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        attempts++;
+          // Exponential backoff with jitter
+          const delay = Math.min(initialDelay * Math.pow(1.5, attempts), maxDelay) + Math.random() * 500;
+          await new Promise(resolve => setTimeout(resolve, delay));
+          attempts++;
       }
 
-      throw new ProviderError(
-        'Generation timed out after 60 seconds',
-        this.name,
-        true
-      );
+        throw new ProviderError(
+          'Generation timed out',
+          this.name,
+          true
+        );
+      } catch (error) {
+        if (error instanceof ProviderError) {
+          throw error;
+        }
 
-    } catch (error) {
-      if (error instanceof ProviderError) {
-        throw error;
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error(`Leonardo generation failed: ${message}`);
+        throw new ProviderError(
+          `Leonardo generation failed: ${message}`,
+          this.name,
+          true,
+          error
+        );
+      } finally {
+        // Cleanup controller
+        this.cleanupController(controller);
       }
-
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      logger.error(`Leonardo generation failed: ${message}`);
-      throw new ProviderError(
-        `Leonardo generation failed: ${message}`,
-        this.name,
-        true,
-        error
-      );
-    }
+    });
   }
 
   async edit(_input: EditInput): Promise<ProviderResult> {

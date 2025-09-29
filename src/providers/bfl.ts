@@ -1,6 +1,7 @@
 import { request } from 'undici';
 import { ImageProvider } from './base.js';
 import { GenerateInput, EditInput, ProviderResult, ProviderError } from '../types.js';
+import { BFLGenerateResponse } from '../types/api-responses.js';
 import { logger } from '../util/logger.js';
 
 /**
@@ -49,20 +50,35 @@ export class BFLProvider extends ImageProvider {
   }
 
   async generate(input: GenerateInput): Promise<ProviderResult> {
-    if (!this.apiKey) {
-      throw new ProviderError('BFL API key not configured', this.name);
+    // Validate API key
+    if (!this.validateApiKey(this.apiKey)) {
+      throw new ProviderError('BFL API key not configured or invalid', this.name, false);
     }
+
+    // Validate prompt
+    this.validatePrompt(input.prompt);
+
+    // Check rate limit
+    await this.checkRateLimit();
+
+    // Check cache
+    const cacheKey = this.generateCacheKey(input);
+    const cached = this.getCachedResult(cacheKey);
+    if (cached) return cached;
 
     // Select appropriate model based on request
     const model = input.model || this.selectBestModel(input.prompt, input.width, input.height);
 
     logger.info(`BFL generating image`, { model, prompt: input.prompt.slice(0, 50) });
 
-    try {
+    // Execute with retry logic
+    return this.executeWithRetry(async () => {
       const controller = this.createTimeout(90000); // BFL can take longer for ultra models
 
+      try {
+
       // Build request body
-      const requestBody: any = {
+      const requestBody: Record<string, any> = {
         prompt: input.prompt,
         width: input.width || 1024,
         height: input.height || 1024,
@@ -97,7 +113,7 @@ export class BFLProvider extends ImageProvider {
         }
       );
 
-      const response = await body.json() as any;
+      const response = await body.json() as BFLGenerateResponse;
 
       if (statusCode !== 200) {
         const message = response.error?.message || `BFL API error: ${statusCode}`;
@@ -112,36 +128,54 @@ export class BFLProvider extends ImageProvider {
         return this.processResult(result, model);
       }
 
-      // Direct result
-      return this.processResult(response, model);
-    } catch (error) {
-      if (error instanceof ProviderError) throw error;
+        // Direct result
+        const result = this.processResult(response, model);
 
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      const isRetryable = message.includes('timeout') || message.includes('ECONNREFUSED');
-      throw new ProviderError(`BFL request failed: ${message}`, this.name, isRetryable, error);
-    }
+        // Cache successful result
+        this.cacheResult(cacheKey, result);
+
+        return result;
+      } catch (error) {
+        if (error instanceof ProviderError) throw error;
+
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        const isRetryable = message.includes('timeout') || message.includes('ECONNREFUSED');
+        throw new ProviderError(`BFL request failed: ${message}`, this.name, isRetryable, error);
+      } finally {
+        // Cleanup controller
+        this.cleanupController(controller);
+      }
+    });
   }
 
   async edit(input: EditInput): Promise<ProviderResult> {
-    if (!this.apiKey) {
-      throw new ProviderError('BFL API key not configured', this.name);
+    // Validate API key
+    if (!this.validateApiKey(this.apiKey)) {
+      throw new ProviderError('BFL API key not configured or invalid', this.name, false);
     }
+
+    // Validate prompt
+    this.validatePrompt(input.prompt);
+
+    // Check rate limit
+    await this.checkRateLimit();
 
     // Use Flux Fill for editing/inpainting
     const model = 'flux-fill-pro';
 
     logger.info(`BFL editing image with Flux Fill`, { prompt: input.prompt.slice(0, 50) });
 
-    try {
+    // Execute with retry logic
+    return this.executeWithRetry(async () => {
       const controller = this.createTimeout(60000);
 
-      // Extract base image data
-      const baseImageData = this.dataUrlToBuffer(input.baseImage);
+      try {
+        // Extract base image data with size validation
+        const baseImageData = this.dataUrlToBuffer(input.baseImage);
 
-      const requestBody: any = {
-        prompt: input.prompt,
-        image: baseImageData.buffer.toString('base64'),
+        const requestBody: Record<string, any> = {
+          prompt: input.prompt,
+          image: baseImageData.buffer.toString('base64'),
         steps: 28,
         guidance: 30, // Higher guidance for inpainting
         output_format: 'png'
@@ -166,7 +200,7 @@ export class BFLProvider extends ImageProvider {
         }
       );
 
-      const response = await body.json() as any;
+      const response = await body.json() as BFLGenerateResponse;
 
       if (statusCode !== 200) {
         const message = response.error?.message || `BFL API error: ${statusCode}`;
@@ -180,14 +214,18 @@ export class BFLProvider extends ImageProvider {
         return this.processResult(result, model);
       }
 
-      return this.processResult(response, model);
-    } catch (error) {
-      if (error instanceof ProviderError) throw error;
+        return this.processResult(response, model);
+      } catch (error) {
+        if (error instanceof ProviderError) throw error;
 
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      const isRetryable = message.includes('timeout') || message.includes('ECONNREFUSED');
-      throw new ProviderError(`BFL edit request failed: ${message}`, this.name, isRetryable, error);
-    }
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        const isRetryable = message.includes('timeout') || message.includes('ECONNREFUSED');
+        throw new ProviderError(`BFL edit request failed: ${message}`, this.name, isRetryable, error);
+      } finally {
+        // Cleanup controller
+        this.cleanupController(controller);
+      }
+    });
   }
 
   /**
@@ -232,14 +270,17 @@ export class BFLProvider extends ImageProvider {
   }
 
   /**
-   * Poll for async result
+   * Poll for async result with exponential backoff
    */
-  private async pollForResult(taskId: string, controller: AbortController): Promise<any> {
+  private async pollForResult(taskId: string, controller: AbortController): Promise<BFLGenerateResponse> {
     const maxAttempts = 30;
-    const pollInterval = 2000; // 2 seconds
+    const initialDelay = 1000; // 1 second
+    const maxDelay = 10000; // 10 seconds
 
     for (let i = 0; i < maxAttempts; i++) {
-      await new Promise(resolve => setTimeout(resolve, pollInterval));
+      // Exponential backoff with jitter
+      const delay = Math.min(initialDelay * Math.pow(1.5, i), maxDelay) + Math.random() * 500;
+      await new Promise(resolve => setTimeout(resolve, delay));
 
       const { statusCode, body } = await request(
         `https://api.bfl.ai/v1/get_result?id=${taskId}`,
@@ -252,7 +293,7 @@ export class BFLProvider extends ImageProvider {
         }
       );
 
-      const result = await body.json() as any;
+      const result = await body.json() as BFLGenerateResponse;
 
       if (statusCode === 200 && result.status === 'Ready') {
         return result;
@@ -271,7 +312,7 @@ export class BFLProvider extends ImageProvider {
   /**
    * Process result into standard format
    */
-  private processResult(response: any, model: string): ProviderResult {
+  private processResult(response: BFLGenerateResponse, model: string): ProviderResult {
     const images = [];
 
     if (response.sample) {

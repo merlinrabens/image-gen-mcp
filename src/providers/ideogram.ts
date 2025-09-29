@@ -44,16 +44,31 @@ export class IdeogramProvider extends ImageProvider {
   }
 
   async generate(input: GenerateInput): Promise<ProviderResult> {
-    if (!this.apiKey) {
-      throw new ProviderError('Ideogram API key not configured', this.name);
+    // Validate API key
+    if (!this.validateApiKey(this.apiKey)) {
+      throw new ProviderError('Ideogram API key not configured or invalid', this.name, false);
     }
+
+    // Validate prompt
+    this.validatePrompt(input.prompt);
+
+    // Check rate limit
+    await this.checkRateLimit();
+
+    // Check cache
+    const cacheKey = this.generateCacheKey(input);
+    const cached = this.getCachedResult(cacheKey);
+    if (cached) return cached;
 
     const model = input.model || 'V_2';
 
     logger.info(`Ideogram generating image`, { model, prompt: input.prompt.slice(0, 50) });
 
-    try {
+    // Execute with retry logic
+    return this.executeWithRetry(async () => {
       const controller = this.createTimeout(60000); // Ideogram can take longer
+
+      try {
 
       // Detect if this is a text-heavy request
       const isTextHeavy = this.detectTextRequest(input.prompt);
@@ -103,25 +118,40 @@ export class IdeogramProvider extends ImageProvider {
         seed: item.seed // Ideogram returns seed for reproducibility
       }));
 
-      return {
-        images,
-        provider: this.name,
-        model,
-        warnings: isTextHeavy ? ['Optimized for text rendering'] : undefined
-      };
-    } catch (error) {
-      if (error instanceof ProviderError) throw error;
+        const result = {
+          images,
+          provider: this.name,
+          model,
+          warnings: isTextHeavy ? ['Optimized for text rendering'] : undefined
+        };
 
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      const isRetryable = message.includes('timeout') || message.includes('ECONNREFUSED');
-      throw new ProviderError(`Ideogram request failed: ${message}`, this.name, isRetryable, error);
-    }
+        // Cache successful result
+        this.cacheResult(cacheKey, result);
+        return result;
+      } catch (error) {
+        if (error instanceof ProviderError) throw error;
+
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        const isRetryable = message.includes('timeout') || message.includes('ECONNREFUSED');
+        throw new ProviderError(`Ideogram request failed: ${message}`, this.name, isRetryable, error);
+      } finally {
+        // Cleanup controller
+        this.cleanupController(controller);
+      }
+    });
   }
 
   async edit(input: EditInput): Promise<ProviderResult> {
-    if (!this.apiKey) {
-      throw new ProviderError('Ideogram API key not configured', this.name);
+    // Validate API key
+    if (!this.validateApiKey(this.apiKey)) {
+      throw new ProviderError('Ideogram API key not configured or invalid', this.name, false);
     }
+
+    // Validate prompt
+    this.validatePrompt(input.prompt);
+
+    // Check rate limit
+    await this.checkRateLimit();
 
     logger.info(`Ideogram editing image`, { prompt: input.prompt.slice(0, 50) });
 

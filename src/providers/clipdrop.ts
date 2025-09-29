@@ -61,15 +61,31 @@ export class ClipdropProvider extends ImageProvider {
   }
 
   async generate(input: GenerateInput): Promise<ProviderResult> {
-    if (!this.apiKey) {
+    // Validate API key
+    if (!this.validateApiKey(this.apiKey)) {
       throw new ProviderError(
-        'CLIPDROP_API_KEY environment variable is not set',
+        'CLIPDROP_API_KEY not configured or invalid',
         this.name,
         false
       );
     }
 
-    try {
+    // Validate prompt
+    this.validatePrompt(input.prompt);
+
+    // Check rate limit
+    await this.checkRateLimit();
+
+    // Check cache
+    const cacheKey = this.generateCacheKey(input);
+    const cached = this.getCachedResult(cacheKey);
+    if (cached) return cached;
+
+    // Execute with retry logic
+    return this.executeWithRetry(async () => {
+      const controller = this.createTimeout(30000);
+
+      try {
       // Determine which API to use based on the prompt
       const endpoint = this.selectEndpoint(input);
 
@@ -94,13 +110,14 @@ export class ClipdropProvider extends ImageProvider {
         formData.append('num_inference_steps', input.steps.toString());
       }
 
-      const response = await fetch(`${this.baseUrl}${endpoint}`, {
-        method: 'POST',
-        headers: {
-          'x-api-key': this.apiKey
-        },
-        body: formData
-      });
+        const response = await fetch(`${this.baseUrl}${endpoint}`, {
+          method: 'POST',
+          headers: {
+            'x-api-key': this.apiKey!
+          },
+          body: formData,
+          signal: controller.signal
+        });
 
       if (!response.ok) {
         const error = await response.text();
@@ -117,50 +134,69 @@ export class ClipdropProvider extends ImageProvider {
       const contentType = response.headers.get('content-type');
       const format = contentType?.includes('webp') ? 'webp' : 'png';
 
-      return {
-        provider: this.name,
-        model: input.model || 'stable-diffusion-xl',
-        images: [{
+        const result = {
+          provider: this.name,
+          model: input.model || 'stable-diffusion-xl',
+          images: [{
           dataUrl: `data:${contentType || 'image/png'};base64,${base64}`,
           format: format as 'png' | 'webp'
-        }]
-      };
+          }]
+        };
 
-    } catch (error) {
-      if (error instanceof ProviderError) {
-        throw error;
+        // Cache successful result
+        this.cacheResult(cacheKey, result);
+        return result;
+
+      } catch (error) {
+        if (error instanceof ProviderError) {
+          throw error;
+        }
+
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error(`Clipdrop generation failed: ${message}`);
+        throw new ProviderError(
+          `Clipdrop generation failed: ${message}`,
+          this.name,
+          true,
+          error
+        );
+      } finally {
+        // Cleanup controller
+        this.cleanupController(controller);
       }
-
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      logger.error(`Clipdrop generation failed: ${message}`);
-      throw new ProviderError(
-        `Clipdrop generation failed: ${message}`,
-        this.name,
-        true,
-        error
-      );
-    }
+    });
   }
 
   async edit(input: EditInput): Promise<ProviderResult> {
-    if (!this.apiKey) {
+    // Validate API key
+    if (!this.validateApiKey(this.apiKey)) {
       throw new ProviderError(
-        'CLIPDROP_API_KEY environment variable is not set',
+        'CLIPDROP_API_KEY not configured or invalid',
         this.name,
         false
       );
     }
 
-    try {
+    // Validate prompt
+    this.validatePrompt(input.prompt);
+
+    // Check rate limit
+    await this.checkRateLimit();
+
+    // Execute with retry logic
+    return this.executeWithRetry(async () => {
+      const controller = this.createTimeout(30000);
+
+      try {
       // Determine edit type from prompt
       const editType = this.determineEditType(input.prompt);
       const endpoint = this.getEditEndpoint(editType);
 
       const formData = new FormData();
 
-      // Convert base64 to blob
-      const base64Data = input.baseImage.split(',')[1];
-      const imageBuffer = Buffer.from(base64Data, 'base64');
+        // Extract and validate base image
+        const imageData = this.dataUrlToBuffer(input.baseImage);
+        const imageBuffer = imageData.buffer;
       const imageBlob = new Blob([imageBuffer], { type: 'image/png' });
       formData.append('image_file', imageBlob, 'image.png');
 
@@ -172,8 +208,8 @@ export class ClipdropProvider extends ImageProvider {
 
         case 'remove-object':
           if (input.maskImage) {
-            const maskData = input.maskImage.split(',')[1];
-            const maskBuffer = Buffer.from(maskData, 'base64');
+            const maskData = this.dataUrlToBuffer(input.maskImage);
+            const maskBuffer = maskData.buffer;
             const maskBlob = new Blob([maskBuffer], { type: 'image/png' });
             formData.append('mask_file', maskBlob, 'mask.png');
           }
@@ -198,13 +234,14 @@ export class ClipdropProvider extends ImageProvider {
           formData.append('prompt', input.prompt);
       }
 
-      const response = await fetch(`${this.baseUrl}${endpoint}`, {
-        method: 'POST',
-        headers: {
-          'x-api-key': this.apiKey
-        },
-        body: formData
-      });
+        const response = await fetch(`${this.baseUrl}${endpoint}`, {
+          method: 'POST',
+          headers: {
+            'x-api-key': this.apiKey!
+          },
+          body: formData,
+          signal: controller.signal
+        });
 
       if (!response.ok) {
         const error = await response.text();
@@ -230,22 +267,26 @@ export class ClipdropProvider extends ImageProvider {
         warnings: editType === 'remove-background'
           ? ['Background removed - image has transparency']
           : undefined
-      };
+        };
 
-    } catch (error) {
-      if (error instanceof ProviderError) {
-        throw error;
+      } catch (error) {
+        if (error instanceof ProviderError) {
+          throw error;
+        }
+
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error(`Clipdrop edit failed: ${message}`);
+        throw new ProviderError(
+          `Clipdrop edit failed: ${message}`,
+          this.name,
+          true,
+          error
+        );
+      } finally {
+        // Cleanup controller
+        this.cleanupController(controller);
       }
-
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      logger.error(`Clipdrop edit failed: ${message}`);
-      throw new ProviderError(
-        `Clipdrop edit failed: ${message}`,
-        this.name,
-        true,
-        error
-      );
-    }
+    });
   }
 
   private selectEndpoint(input: GenerateInput): string {

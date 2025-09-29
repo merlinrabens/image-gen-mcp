@@ -1,5 +1,6 @@
 import { ImageProvider } from './base.js';
 import { GenerateInput, EditInput, ProviderResult, ProviderError } from '../types.js';
+import { FalGenerateResponse } from '../types/api-responses.js';
 import { logger } from '../util/logger.js';
 
 /**
@@ -63,20 +64,36 @@ export class FalProvider extends ImageProvider {
   }
 
   async generate(input: GenerateInput): Promise<ProviderResult> {
-    if (!this.apiKey) {
+    // Validate API key
+    if (!this.validateApiKey(this.apiKey)) {
       throw new ProviderError(
-        'FAL_API_KEY environment variable is not set',
+        'FAL_API_KEY not configured or invalid',
         this.name,
         false
       );
     }
 
-    try {
+    // Validate prompt
+    this.validatePrompt(input.prompt);
+
+    // Check rate limit
+    await this.checkRateLimit();
+
+    // Check cache
+    const cacheKey = this.generateCacheKey(input);
+    const cached = this.getCachedResult(cacheKey);
+    if (cached) return cached;
+
+    // Execute with retry logic
+    return this.executeWithRetry(async () => {
+      const controller = this.createTimeout(60000);
+
+      try {
       const model = this.getModelEndpoint(input.model);
       const requestBody = this.buildRequestBody(input, model);
 
       // Fal.ai uses a queue system for async generation
-      const queueResponse = await fetch(`${this.baseUrl}/${model}`, {
+        const queueResponse = await fetch(`${this.baseUrl}/${model}`, {
         method: 'POST',
         headers: {
           'Authorization': `Key ${this.apiKey}`,
@@ -94,17 +111,21 @@ export class FalProvider extends ImageProvider {
         );
       }
 
-      const result: any = await queueResponse.json();
+        const result = await queueResponse.json() as FalGenerateResponse;
 
-      // Fal.ai can return results immediately for fast models
-      if (result.images) {
-        return this.processResult(result, input);
-      }
+        // Fal.ai can return results immediately for fast models
+        if (result.images) {
+          const processedResult = await this.processResult(result, input);
+          this.cacheResult(cacheKey, processedResult);
+          return processedResult;
+        }
 
-      // For slower models, poll the request ID
-      if (result.request_id) {
-        return await this.pollForResult(result.request_id, model, input);
-      }
+        // For slower models, poll the request ID
+        if (result.request_id) {
+          const processedResult = await this.pollForResult(result.request_id, model, input, controller);
+          this.cacheResult(cacheKey, processedResult);
+          return processedResult;
+        }
 
       throw new ProviderError(
         'Unexpected response format from Fal.ai',
@@ -112,20 +133,24 @@ export class FalProvider extends ImageProvider {
         false
       );
 
-    } catch (error) {
-      if (error instanceof ProviderError) {
-        throw error;
-      }
+      } catch (error) {
+        if (error instanceof ProviderError) {
+          throw error;
+        }
 
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      logger.error(`Fal.ai generation failed: ${message}`);
-      throw new ProviderError(
-        `Fal.ai generation failed: ${message}`,
-        this.name,
-        true,
-        error
-      );
-    }
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error(`Fal.ai generation failed: ${message}`);
+        throw new ProviderError(
+          `Fal.ai generation failed: ${message}`,
+          this.name,
+          true,
+          error
+        );
+      } finally {
+        // Cleanup controller
+        this.cleanupController(controller);
+      }
+    });
   }
 
   async edit(_input: EditInput): Promise<ProviderResult> {
@@ -157,8 +182,8 @@ export class FalProvider extends ImageProvider {
     return modelMap['fast-sdxl'];
   }
 
-  private buildRequestBody(input: GenerateInput, model: string): any {
-    const body: any = {
+  private buildRequestBody(input: GenerateInput, model: string) {
+    const body: Record<string, any> = {
       prompt: input.prompt,
       num_inference_steps: input.steps || (model.includes('fast') ? 4 : 25),
       guidance_scale: input.guidance || 3.5,
@@ -215,12 +240,14 @@ export class FalProvider extends ImageProvider {
   private async pollForResult(
     requestId: string,
     model: string,
-    input: GenerateInput
+    input: GenerateInput,
+    _controller: AbortController
   ): Promise<ProviderResult> {
-    const maxAttempts = 30; // 30 seconds max
-    let attempts = 0;
+    const maxAttempts = 30;
+    const initialDelay = 100; // Fast models start with short delay
+    const maxDelay = 5000;
 
-    while (attempts < maxAttempts) {
+    for (let attempts = 0; attempts < maxAttempts; attempts++) {
       const statusResponse = await fetch(
         `${this.baseUrl}/${model}/requests/${requestId}`,
         {
@@ -238,7 +265,7 @@ export class FalProvider extends ImageProvider {
         );
       }
 
-      const status: any = await statusResponse.json();
+      const status = await statusResponse.json() as FalGenerateResponse;
 
       if (status.status === 'COMPLETED' && status.images) {
         return this.processResult(status, input);
@@ -250,10 +277,10 @@ export class FalProvider extends ImageProvider {
         );
       }
 
-      // Wait before next poll (shorter for fast models)
-      const delay = model.includes('fast') ? 100 : 1000;
+      // Exponential backoff with model-specific initial delay
+      const baseDelay = model.includes('fast') ? initialDelay : 500;
+      const delay = Math.min(baseDelay * Math.pow(1.5, attempts), maxDelay) + Math.random() * 200;
       await new Promise(resolve => setTimeout(resolve, delay));
-      attempts++;
     }
 
     throw new ProviderError(
@@ -264,7 +291,7 @@ export class FalProvider extends ImageProvider {
   }
 
   private async processResult(
-    result: any,
+    result: FalGenerateResponse,
     input: GenerateInput
   ): Promise<ProviderResult> {
     const images = result.images || [];
@@ -278,8 +305,8 @@ export class FalProvider extends ImageProvider {
     }
 
     // Download and convert images
-    const imagePromises = images.map(async (img: any) => {
-      const url = img.url || img;
+    const imagePromises = images.map(async (img) => {
+      const url = typeof img === 'string' ? img : img.url;
       const response = await fetch(url);
 
       if (!response.ok) {
