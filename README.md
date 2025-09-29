@@ -182,7 +182,7 @@ Generate images from text prompts.
 ```
 Request: {
   "prompt": "A serene mountain landscape at sunset",
-  "provider": "OPENAI",  // Optional
+  "provider": "auto",     // Or specify: OPENAI, LEONARDO, FAL, etc.
   "width": 1024,          // Optional
   "height": 1024,         // Optional
   "model": "dall-e-3",    // Optional
@@ -212,6 +212,16 @@ Request: {
 ```
 
 ## Provider Examples
+
+### Automatic Provider Selection
+
+Let the system choose the best provider for your use case:
+```javascript
+{
+  "prompt": "Create a logo with the text 'TechStartup 2025'",
+  "provider": "auto"  // Will select Ideogram for text rendering
+}
+```
 
 ### Mock Provider (No API Key Required)
 
@@ -281,6 +291,61 @@ For editing:
 }
 ```
 
+### Ideogram
+
+Best-in-class text rendering for logos and posters:
+```javascript
+{
+  "prompt": "A vintage poster with the text 'SUMMER FESTIVAL 2025' in bold retro typography",
+  "provider": "IDEOGRAM",
+  "model": "V_2_TURBO"
+}
+```
+
+### Leonardo.AI
+
+Character consistency for carousels and series:
+```javascript
+{
+  "prompt": "A friendly robot mascot waving hello, consistent character design",
+  "provider": "LEONARDO",
+  "model": "leonardo-diffusion-xl"
+}
+```
+
+### Fal.ai
+
+Ultra-fast generation for rapid iteration:
+```javascript
+{
+  "prompt": "Quick sketch of a product mockup",
+  "provider": "FAL",
+  "model": "fast-sdxl"  // 50-100ms generation!
+}
+```
+
+### BFL/Flux
+
+Industry-leading photorealistic quality:
+```javascript
+{
+  "prompt": "Professional headshot of a business executive in modern office",
+  "provider": "BFL",
+  "model": "flux-pro"
+}
+```
+
+### Clipdrop
+
+Advanced editing and post-processing:
+```javascript
+{
+  "prompt": "Remove background",
+  "baseImage": "data:image/png;base64,...",
+  "provider": "CLIPDROP"
+}
+```
+
 ## Provider Capabilities
 
 | Provider | Generate | Edit | Max Size | Models | Special Features |
@@ -303,8 +368,10 @@ Note: All Gemini images include a SynthID watermark. Requires Blaze pricing plan
 When a provider fails or isn't configured, the system automatically falls back:
 
 ```
-OPENAI → STABILITY → REPLICATE → GEMINI → MOCK
+IDEOGRAM → BFL → LEONARDO → FAL → OPENAI → STABILITY → REPLICATE → GEMINI → MOCK
 ```
+
+Or use `provider: "auto"` for intelligent selection based on your prompt content.
 
 You can override this with the `DEFAULT_PROVIDER` environment variable.
 
@@ -322,6 +389,11 @@ npm run build
 npm run typecheck
 ```
 
+### Run Tests
+```bash
+npm test
+```
+
 ### Project Structure
 ```
 image-gen-mcp/
@@ -329,6 +401,8 @@ image-gen-mcp/
 │   ├── index.ts           # MCP server entry
 │   ├── config.ts          # Provider management
 │   ├── types.ts           # TypeScript types & Zod schemas
+│   ├── services/
+│   │   └── providerSelector.ts  # Intelligent provider selection
 │   ├── util/
 │   │   └── logger.ts      # Logging utility
 │   └── providers/
@@ -337,16 +411,76 @@ image-gen-mcp/
 │       ├── openai.ts      # OpenAI DALL-E
 │       ├── stability.ts   # Stability AI
 │       ├── replicate.ts   # Replicate
-│       └── gemini.ts      # Google Gemini
+│       ├── gemini.ts      # Google Gemini
+│       ├── ideogram.ts    # Ideogram (text rendering)
+│       ├── leonardo.ts    # Leonardo.AI (consistency)
+│       ├── fal.ts         # Fal.ai (ultra-fast)
+│       ├── bfl.ts         # Black Forest Labs Flux
+│       └── clipdrop.ts    # Clipdrop (post-processing)
 ```
 
 ## Architecture Notes
 
 - **Stdio Transport**: Required by MCP spec for Claude Desktop integration
+- **Intelligent Selection**: Analyzes prompts to automatically choose optimal provider
 - **Data URLs**: Images returned as base64 for direct Claude preview (warning for >5MB)
 - **Circuit Breaker**: Intelligent error categorization for fallback decisions
 - **Provider Pattern**: Pluggable adapters with abstract base class
 - **Minimal Dependencies**: Only essential packages for lean deployment
+
+## Use Case Examples
+
+### Social Media Carousels
+```javascript
+// Generate consistent character across multiple slides
+const mascot1 = await generate({
+  prompt: "Friendly robot mascot introducing a product",
+  provider: "LEONARDO"
+});
+const mascot2 = await generate({
+  prompt: "Same friendly robot mascot explaining features",
+  provider: "LEONARDO"
+});
+```
+
+### Marketing Materials
+```javascript
+// Logo with text
+await generate({
+  prompt: "Modern tech startup logo with text 'InnovateCo'",
+  provider: "IDEOGRAM"
+});
+
+// Product shots
+await generate({
+  prompt: "Professional product photography of smartphone",
+  provider: "BFL"
+});
+```
+
+### Rapid Prototyping
+```javascript
+// Ultra-fast iteration
+await generate({
+  prompt: "Quick wireframe sketch of mobile app",
+  provider: "FAL"  // Returns in 50-300ms!
+});
+```
+
+### Post-Processing Pipeline
+```javascript
+// Generate then edit
+const image = await generate({
+  prompt: "Product on white background",
+  provider: "auto"
+});
+
+const transparent = await edit({
+  prompt: "Remove background",
+  baseImage: image.dataUrl,
+  provider: "CLIPDROP"
+});
+```
 
 ## Troubleshooting
 
