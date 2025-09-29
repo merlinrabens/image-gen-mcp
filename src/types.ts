@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const GenerateInputSchema = z.object({
   prompt: z.string().min(1).describe('Text prompt for image generation'),
-  provider: z.string().optional().describe('Provider name (OPENAI, STABILITY, REPLICATE, GEMINI, MOCK)'),
+  provider: z.string().optional().describe('Provider name (OPENAI, STABILITY, REPLICATE, GEMINI, IDEOGRAM, BFL, LEONARDO, FAL, CLIPDROP, MOCK, or "auto" for intelligent selection)'),
   width: z.number().int().min(64).max(4096).optional().describe('Image width in pixels'),
   height: z.number().int().min(64).max(4096).optional().describe('Image height in pixels'),
   model: z.string().optional().describe('Model name for the provider'),
@@ -13,7 +13,7 @@ export const GenerateInputSchema = z.object({
 
 export const EditInputSchema = z.object({
   prompt: z.string().min(1).describe('Text prompt for image editing'),
-  provider: z.string().optional().describe('Provider name (OPENAI, STABILITY, REPLICATE, GEMINI, MOCK)'),
+  provider: z.string().optional().describe('Provider name (OPENAI, STABILITY, REPLICATE, GEMINI, IDEOGRAM, BFL, LEONARDO, FAL, CLIPDROP, MOCK, or "auto" for intelligent selection)'),
   baseImage: z.string().describe('Base64 data URL or URL of the image to edit'),
   maskImage: z.string().optional().describe('Base64 data URL or URL of the mask image'),
   model: z.string().optional().describe('Model name for the provider')
@@ -32,7 +32,7 @@ export interface ProviderResult {
   warnings?: string[];
 }
 
-export type ProviderName = 'OPENAI' | 'STABILITY' | 'REPLICATE' | 'GEMINI' | 'MOCK';
+export type ProviderName = 'OPENAI' | 'STABILITY' | 'REPLICATE' | 'GEMINI' | 'IDEOGRAM' | 'BFL' | 'LEONARDO' | 'FAL' | 'CLIPDROP' | 'MOCK';
 
 export class ProviderError extends Error {
   constructor(
