@@ -8,6 +8,9 @@
  * Usage: npm run validate-providers
  */
 
+// Load environment variables from .env file
+import 'dotenv/config';
+
 import { Config } from '../src/config.js';
 import { logger } from '../src/util/logger.js';
 
