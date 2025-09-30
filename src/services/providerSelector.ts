@@ -134,7 +134,6 @@ export function analyzePrompt(prompt: string): { useCase: string; confidence: nu
   buildKeywordIndex();
 
   const lower = prompt.toLowerCase();
-  const words = lower.split(/\s+/);
   const useCaseScores = new Map<string, { score: number; matchedKeywords: number }>();
 
   // Check for exact keyword matches in the full prompt (not just words)

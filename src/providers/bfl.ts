@@ -33,10 +33,8 @@ export class BFLProvider extends ImageProvider {
       maxHeight: 2048,
       supportedModels: [
         'flux1.1-pro', // Standard pro model - $0.04
-        'flux1.1-pro-ultra', // Ultra high-res - $0.06
-        'flux1.1-pro-raw', // Candid photography feel - $0.06
+        'flux1.1-pro-ultra', // Ultra high-res (4MP) - $0.06
         'flux-kontext-pro', // Create and edit with text+images - $0.04
-        'flux-kontext-max', // Maximum quality - $0.08
         'flux-fill-pro' // Inpainting model - $0.05
       ],
       specialFeatures: [
@@ -101,7 +99,7 @@ export class BFLProvider extends ImageProvider {
       const endpoint = this.getEndpointForModel(model);
 
       const { statusCode, body } = await request(
-        `https://api.bfl.ai/${endpoint}`,
+        `https://api.bfl.ml/${endpoint}`,
         {
           method: 'POST',
           headers: {
@@ -124,12 +122,14 @@ export class BFLProvider extends ImageProvider {
       // Handle async generation (BFL returns a task ID for polling)
       if (response.id && !response.sample) {
         // Poll for result
-        const result = await this.pollForResult(response.id, controller);
-        return this.processResult(result, model);
+        const polledResponse = await this.pollForResult(response.id, controller);
+        const result = await this.processResult(polledResponse, model);
+        this.cacheResult(cacheKey, result);
+        return result;
       }
 
         // Direct result
-        const result = this.processResult(response, model);
+        const result = await this.processResult(response, model);
 
         // Cache successful result
         this.cacheResult(cacheKey, result);
@@ -160,10 +160,13 @@ export class BFLProvider extends ImageProvider {
     // Check rate limit
     await this.checkRateLimit();
 
-    // Use Flux Fill for editing/inpainting
-    const model = 'flux-fill-pro';
+    // Choose model based on whether we have a mask
+    // Flux Kontext: General editing without mask
+    // Flux Fill: Inpainting with mask
+    const model = input.maskImage ? 'flux-fill-pro' : 'flux-kontext-pro';
+    const isKontext = !input.maskImage;
 
-    logger.info(`BFL editing image with Flux Fill`, { prompt: input.prompt.slice(0, 50) });
+    logger.info(`BFL editing image with ${isKontext ? 'Flux Kontext' : 'Flux Fill'}`, { prompt: input.prompt.slice(0, 50) });
 
     // Execute with retry logic
     return this.executeWithRetry(async () => {
@@ -173,22 +176,38 @@ export class BFLProvider extends ImageProvider {
         // Extract base image data with size validation
         const baseImageData = this.dataUrlToBuffer(input.baseImage);
 
-        const requestBody: Record<string, any> = {
-          prompt: input.prompt,
-          image: baseImageData.buffer.toString('base64'),
-        steps: 28,
-        guidance: 30, // Higher guidance for inpainting
-        output_format: 'png'
-      };
+        let endpoint: string;
+        let requestBody: Record<string, any>;
 
-      // Add mask if provided
-      if (input.maskImage) {
-        const maskData = this.dataUrlToBuffer(input.maskImage);
-        requestBody.mask = maskData.buffer.toString('base64');
-      }
+        if (isKontext) {
+          // Flux Kontext: General image editing without mask
+          endpoint = 'https://api.bfl.ml/v1/flux-kontext-pro';
+          requestBody = {
+            prompt: input.prompt,
+            image: baseImageData.buffer.toString('base64'),
+            steps: 28,
+            guidance: 3.5, // Kontext uses lower guidance
+            safety_tolerance: 2,
+            output_format: 'png'
+          };
+        } else {
+          // Flux Fill: Inpainting with mask
+          endpoint = 'https://api.bfl.ml/v1/flux-pro-1.0-fill';
+          requestBody = {
+            prompt: input.prompt,
+            image: baseImageData.buffer.toString('base64'),
+            steps: 28,
+            guidance: 30, // Higher guidance for inpainting
+            output_format: 'png'
+          };
+
+          // Add mask for Fill
+          const maskData = this.dataUrlToBuffer(input.maskImage!);
+          requestBody.mask = maskData.buffer.toString('base64');
+        }
 
       const { statusCode, body } = await request(
-        'https://api.bfl.ai/v1/flux-fill',
+        endpoint,
         {
           method: 'POST',
           headers: {
@@ -210,11 +229,11 @@ export class BFLProvider extends ImageProvider {
 
       // Handle async result
       if (response.id && !response.sample) {
-        const result = await this.pollForResult(response.id, controller);
-        return this.processResult(result, model);
+        const polledResponse = await this.pollForResult(response.id, controller);
+        return await this.processResult(polledResponse, model);
       }
 
-        return this.processResult(response, model);
+        return await this.processResult(response, model);
       } catch (error) {
         if (error instanceof ProviderError) throw error;
 
@@ -232,24 +251,21 @@ export class BFLProvider extends ImageProvider {
    * Select the best model based on the request
    */
   private selectBestModel(prompt: string, width?: number, height?: number): string {
-    const lower = prompt.toLowerCase();
+    const requestedSize = (width || 1024) * (height || 1024);
+    const lowerPrompt = prompt.toLowerCase();
 
-    // Check for ultra high resolution needs
-    if (width && height && (width > 1536 || height > 1536)) {
+    // Use ultra for high-resolution requests (>1MP)
+    if (requestedSize > 1024 * 1024) {
       return 'flux1.1-pro-ultra';
     }
 
-    // Check for photorealistic/raw photography keywords
-    if (lower.includes('photo') || lower.includes('realistic') || lower.includes('candid')) {
-      return 'flux1.1-pro-raw';
-    }
-
-    // Check for editing/composition keywords
-    if (lower.includes('edit') || lower.includes('compose') || lower.includes('combine')) {
+    // Use kontext for character consistency or multi-image scenarios
+    if (lowerPrompt.includes('character') || lowerPrompt.includes('consistent') ||
+        lowerPrompt.includes('same person') || lowerPrompt.includes('series')) {
       return 'flux-kontext-pro';
     }
 
-    // Default to standard pro
+    // Default to standard pro model - fast and reliable
     return 'flux1.1-pro';
   }
 
@@ -260,9 +276,7 @@ export class BFLProvider extends ImageProvider {
     const endpoints: Record<string, string> = {
       'flux1.1-pro': 'v1/flux-pro-1.1',
       'flux1.1-pro-ultra': 'v1/flux-pro-1.1-ultra',
-      'flux1.1-pro-raw': 'v1/flux-pro-1.1-raw',
-      'flux-kontext-pro': 'v1/flux-kontext',
-      'flux-kontext-max': 'v1/flux-kontext-max',
+      'flux-kontext-pro': 'v1/flux-kontext-pro',
       'flux-fill-pro': 'v1/flux-fill'
     };
 
@@ -282,8 +296,9 @@ export class BFLProvider extends ImageProvider {
       const delay = Math.min(initialDelay * Math.pow(1.5, i), maxDelay) + Math.random() * 500;
       await new Promise(resolve => setTimeout(resolve, delay));
 
+      // Use the correct API domain (.ml not .ai)
       const { statusCode, body } = await request(
-        `https://api.bfl.ai/v1/get_result?id=${taskId}`,
+        `https://api.bfl.ml/v1/get_result?id=${taskId}`,
         {
           method: 'GET',
           headers: {
@@ -312,19 +327,30 @@ export class BFLProvider extends ImageProvider {
   /**
    * Process result into standard format
    */
-  private processResult(response: BFLGenerateResponse, model: string): ProviderResult {
+  private async processResult(response: BFLGenerateResponse, model: string): Promise<ProviderResult> {
     const images = [];
 
-    if (response.sample) {
-      images.push({
-        dataUrl: `data:image/png;base64,${response.sample}`,
-        format: 'png' as const
-      });
-    } else if (response.result && response.result.sample) {
-      images.push({
-        dataUrl: `data:image/png;base64,${response.result.sample}`,
-        format: 'png' as const
-      });
+    // Get sample data - either from result.sample or direct sample
+    const sampleData = response.result?.sample || response.sample;
+
+    if (sampleData) {
+      // Check if it's a URL or base64 data
+      if (sampleData.startsWith('http://') || sampleData.startsWith('https://')) {
+        // It's a URL - fetch the image
+        const imageResponse = await fetch(sampleData);
+        const arrayBuffer = await imageResponse.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        images.push({
+          dataUrl: this.bufferToDataUrl(buffer, 'image/png'),
+          format: 'png' as const
+        });
+      } else {
+        // It's base64 data
+        images.push({
+          dataUrl: `data:image/png;base64,${sampleData}`,
+          format: 'png' as const
+        });
+      }
     }
 
     if (images.length === 0) {

@@ -357,3 +357,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 - [ ] Types properly defined
 - [ ] No console.log statements
 - [ ] Documentation updated
+
+## Git Commit and PR Rules (CRITICAL)
+- NEVER add "Co-Authored-By: Claude" or any co-author attribution in commits
+- NEVER mention "Generated with Claude Code" or similar in commit messages
+- NEVER add Claude attribution, robot emojis (🤖), or AI-generated mentions in PR descriptions
+- NEVER reference Claude, AI assistance, or automated generation in any git-related text
+- Write commit messages and PR descriptions as if written directly by the developer

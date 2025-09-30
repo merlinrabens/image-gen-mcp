@@ -100,7 +100,23 @@ export class OpenAIProvider extends ImageProvider {
       const controller = this.createTimeout();
 
       // Convert base64 to blob for form data
-      const baseImageBuffer = this.dataUrlToBuffer(input.baseImage).buffer;
+      let baseImageBuffer = this.dataUrlToBuffer(input.baseImage).buffer;
+
+      // OpenAI requires RGBA format - convert if needed
+      try {
+        const sharp = (await import('sharp')).default;
+        const metadata = await sharp(baseImageBuffer).metadata();
+        if (metadata.channels === 3) {
+          // RGB image - add alpha channel
+          baseImageBuffer = await sharp(baseImageBuffer)
+            .ensureAlpha()
+            .png()
+            .toBuffer();
+        }
+      } catch (err) {
+        logger.warn('Failed to convert image to RGBA, proceeding with original', { error: err });
+      }
+
       const maskBuffer = input.maskImage ? this.dataUrlToBuffer(input.maskImage).buffer : undefined;
 
       // Create multipart form data manually

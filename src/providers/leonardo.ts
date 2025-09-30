@@ -87,13 +87,10 @@ export class LeonardoProvider extends ImageProvider {
 
       try {
         // Create generation job
-        const createResponse = await fetch(`${this.baseUrl}/generations`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
+        const isPhotoReal = input.prompt.toLowerCase().includes('photo') ||
+                            input.prompt.toLowerCase().includes('realistic');
+
+        const requestBody: any = {
           prompt: input.prompt,
           negative_prompt: '',
           modelId: this.getModelId(input.model),
@@ -108,12 +105,24 @@ export class LeonardoProvider extends ImageProvider {
           scheduler: 'LEONARDO',
           presetStyle: this.mapToPresetStyle(input.prompt),
           alchemy: true, // Enable Alchemy V2 for better quality
-          photoReal: input.prompt.toLowerCase().includes('photo') ||
-                     input.prompt.toLowerCase().includes('realistic'),
-          photoRealStrength: 0.5,
           expandedDomain: true,
           highResolution: true
-        })
+        };
+
+        // Only add PhotoReal settings when enabled
+        if (isPhotoReal) {
+          requestBody.photoReal = true;
+          requestBody.photoRealVersion = 'v2';
+          requestBody.photoRealStrength = 0.5;
+        }
+
+        const createResponse = await fetch(`${this.baseUrl}/generations`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
       });
 
       if (!createResponse.ok) {

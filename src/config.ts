@@ -154,7 +154,7 @@ export class Config {
     if (requestedName === 'auto' && prompt) {
       const configured = this.getConfiguredProviders();
       const selectedName = selectProvider(prompt, configured);
-      const provider = this.getProvider(selectedName);
+      const provider = selectedName ? this.getProvider(selectedName) : null;
       if (provider?.isConfigured()) {
         return provider;
       }

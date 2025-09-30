@@ -46,9 +46,6 @@ export class GeminiProvider extends ImageProvider {
 
     logger.info(`Gemini generating image`, { model, prompt: input.prompt.slice(0, 50) });
 
-    // Calculate aspect ratio from dimensions (declared outside try block for use in return)
-    const aspectRatio = this.calculateAspectRatio(input.width, input.height);
-
     try {
       const controller = this.createTimeout(60000); // Gemini can be slower
 
@@ -64,12 +61,12 @@ export class GeminiProvider extends ImageProvider {
           temperature: 0.8,
           topK: 40,
           topP: 0.95,
-          maxOutputTokens: 8192,
-          aspectRatio: aspectRatio // Add aspect ratio for dimension control
+          maxOutputTokens: 8192
+          // aspectRatio parameter removed - not supported in current API version
         }
       };
 
-      logger.info(`Requesting Gemini image with aspectRatio: ${aspectRatio}`);
+      logger.info(`Requesting Gemini image (1:1 output, aspect ratio control not available)`);
 
       const { statusCode, body } = await request(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.apiKey}`,
@@ -133,7 +130,7 @@ export class GeminiProvider extends ImageProvider {
         model,
         warnings: [
           'All Gemini images include a SynthID watermark',
-          ...(aspectRatio !== "1:1" ? [`Note: Gemini-2.5-flash-image-preview currently has a known issue where it ignores aspectRatio and always produces 1:1 images. Requested: ${aspectRatio}`] : [])
+          'Gemini currently only supports 1:1 (square) aspect ratio'
         ]
       };
     } catch (error) {
@@ -271,41 +268,8 @@ export class GeminiProvider extends ImageProvider {
     }
   }
 
-  /**
-   * Calculate the closest supported aspect ratio from width/height
-   * Supported ratios: "1:1", "3:4", "4:3", "9:16", "16:9"
-   */
-  private calculateAspectRatio(width?: number, height?: number): string {
-    if (!width || !height) {
-      return "1:1"; // Default to square
-    }
-
-    const ratio = width / height;
-
-    // Define supported ratios and their values
-    const supportedRatios = [
-      { name: "1:1", value: 1.0 },      // Square
-      { name: "3:4", value: 0.75 },     // Portrait
-      { name: "4:3", value: 1.333 },    // Landscape
-      { name: "9:16", value: 0.5625 },  // Tall portrait (mobile)
-      { name: "16:9", value: 1.778 }    // Widescreen
-    ];
-
-    // Find the closest ratio
-    let closestRatio = supportedRatios[0];
-    let minDiff = Math.abs(ratio - closestRatio.value);
-
-    for (const supportedRatio of supportedRatios) {
-      const diff = Math.abs(ratio - supportedRatio.value);
-      if (diff < minDiff) {
-        minDiff = diff;
-        closestRatio = supportedRatio;
-      }
-    }
-
-    logger.debug(`Mapped ${width}x${height} (ratio ${ratio.toFixed(2)}) to aspectRatio "${closestRatio.name}"`);
-    return closestRatio.name;
-  }
+  // Note: calculateAspectRatio method removed as aspectRatio parameter is not supported in current Gemini API
+  // The API currently only supports 1:1 (square) output regardless of requested dimensions
 
   /**
    * Extract format from MIME type

@@ -49,16 +49,16 @@ export class FalProvider extends ImageProvider {
       supportsCustomModels: false,
       maxWidth: 1536,
       maxHeight: 1536,
-      defaultModel: 'fast-sdxl',
+      defaultModel: 'flux-realism', // Changed from fast-sdxl for better quality
       availableModels: [
-        'fast-sdxl', // 50-100ms generation!
-        'fast-lightning-sdxl', // Even faster!
+        'flux-realism', // Photorealistic - RECOMMENDED
         'flux-pro', // High quality
-        'flux-realism', // Photorealistic
+        'realvisxl-v4', // Ultra-realistic
         'stable-diffusion-v3', // Latest SD
         'animagine-xl', // Anime style
         'playground-v2', // Creative
-        'realvisxl-v4' // Ultra-realistic
+        'fast-sdxl', // 50-100ms generation (lower quality)
+        'fast-lightning-sdxl' // Even faster (lowest quality)
       ]
     };
   }
@@ -178,14 +178,15 @@ export class FalProvider extends ImageProvider {
       return modelMap[modelName];
     }
 
-    // Default to fast-sdxl for speed
-    return modelMap['fast-sdxl'];
+    // Default to flux-realism for quality (changed from fast-sdxl)
+    return modelMap['flux-realism'];
   }
 
   private buildRequestBody(input: GenerateInput, model: string) {
     const body: Record<string, any> = {
       prompt: input.prompt,
-      num_inference_steps: input.steps || (model.includes('fast') ? 4 : 25),
+      // Increased minimum steps for fast models (8 instead of 4) to prevent tiling artifacts
+      num_inference_steps: input.steps || (model.includes('fast') ? 8 : 25),
       guidance_scale: input.guidance || 3.5,
       num_images: 1,
       enable_safety_checker: true,
