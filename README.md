@@ -252,7 +252,7 @@ Response: [
     "capabilities": {
       "supportsGenerate": true,
       "supportsEdit": true,
-      "supportedModels": ["dall-e-3", "dall-e-2"]
+      "supportedModels": ["dall-e-3", "gpt-image-1"]
     }
   },
   ...
@@ -351,6 +351,9 @@ Perfect for testing:
 ### OpenAI DALL-E
 
 Best for high-quality, creative images:
+- **Generation**: Uses `dall-e-3` (modern, high-quality)
+- **Editing**: Uses `gpt-image-1` (modern, supports up to 50MB images)
+
 ```javascript
 {
   "prompt": "An oil painting of a robot reading a book",
@@ -360,6 +363,8 @@ Best for high-quality, creative images:
   "height": 1024
 }
 ```
+
+**Note**: DALL-E 2 has been deprecated. All operations use modern models only (dall-e-3 for generation, gpt-image-1 for editing).
 
 ### Stability AI
 
@@ -466,7 +471,7 @@ Advanced editing and post-processing:
 | Provider | Generate | Edit | Max Size | Models | Special Features |
 |----------|----------|------|----------|---------|-----------------|
 | Mock | ✅ | ✅ | 256×256 | mock-v1 | Testing only |
-| OpenAI | ✅ | ✅ | 1792×1792 | dall-e-3, dall-e-2 | High quality, creative |
+| OpenAI | ✅ | ✅ | 1792×1792 | dall-e-3, gpt-image-1 | High quality, creative |
 | Stability | ✅ | ✅ | 1536×1536 | SD3.5, SD-XL, Image Core | Photorealistic, artistic |
 | Leonardo | ✅ | ❌ | 1536×1536 | Leonardo models | Character consistency |
 | Ideogram | ✅ | ✅ | 2048×2048 | V_2, V_2_TURBO | Exceptional text rendering |

@@ -652,6 +652,286 @@ describe('OpenAI Provider', () => {
 
     await expect(provider.generate({ prompt: 'test' })).rejects.toThrow();
   });
+
+  describe('Modern Model Support', () => {
+    it('should use DALL-E 3 as default for generation', async () => {
+      provider = new OpenAIProvider();
+      const mockResponse = {
+        data: [{ b64_json: Buffer.from('image-data').toString('base64') }]
+      };
+
+      const undici = await import('undici');
+      (undici.request as any).mockResolvedValueOnce({
+        statusCode: 200,
+        body: {
+          json: async () => mockResponse
+        }
+      });
+
+      await provider.generate({
+        prompt: 'test image'
+      });
+
+      // Verify DALL-E 3 was used by default
+      const requestCall = (undici.request as any).mock.calls[0];
+      const bodyData = JSON.parse(requestCall[1].body);
+      expect(bodyData.model).toBe('dall-e-3');
+    });
+
+    it('should use gpt-image-1 as default for editing', async () => {
+      provider = new OpenAIProvider();
+      const mockResponse = {
+        data: [{ url: 'https://example.com/edited-image.png' }]
+      };
+
+      const undici = await import('undici');
+      (undici.request as any).mockResolvedValueOnce({
+        statusCode: 200,
+        body: {
+          json: async () => mockResponse
+        }
+      });
+
+      vi.mocked(global.fetch).mockResolvedValueOnce({
+        ok: true,
+        arrayBuffer: async () => Buffer.from('edited-image-data')
+      } as any);
+
+      await provider.edit({
+        prompt: 'make it blue',
+        baseImage: 'data:image/png;base64,dGVzdA=='
+      });
+
+      // Verify gpt-image-1 was used
+      const requestCall = (undici.request as any).mock.calls[0];
+      const requestBody = requestCall[1].body.toString();
+      expect(requestBody).toContain('gpt-image-1');
+    });
+
+    it('should only support DALL-E 3 and gpt-image-1', () => {
+      const capabilities = provider.getCapabilities();
+      expect(capabilities.supportedModels).toEqual(['dall-e-3', 'gpt-image-1']);
+      expect(capabilities.supportedModels).not.toContain('dall-e-2');
+    });
+  });
+
+  describe('gpt-image-1 URL Response Handling', () => {
+    beforeEach(() => {
+      provider = new OpenAIProvider();
+    });
+
+    it('should handle gpt-image-1 URL responses', async () => {
+      const mockResponse = {
+        data: [{ url: 'https://example.com/edited.png' }]
+      };
+
+      const undici = await import('undici');
+      (undici.request as any).mockResolvedValueOnce({
+        statusCode: 200,
+        body: {
+          json: async () => mockResponse
+        }
+      });
+
+      const mockImageData = Buffer.from('image-data');
+      vi.mocked(global.fetch).mockResolvedValueOnce({
+        ok: true,
+        arrayBuffer: async () => mockImageData
+      } as any);
+
+      const result = await provider.edit({
+        prompt: 'edit test',
+        baseImage: 'data:image/png;base64,dGVzdA==',
+        model: 'gpt-image-1'
+      });
+
+      expect(result.images).toHaveLength(1);
+      expect(result.images[0].dataUrl).toContain('base64');
+      expect(result.model).toBe('gpt-image-1');
+
+      // Verify fetch was called to download the URL
+      expect(global.fetch).toHaveBeenCalledWith('https://example.com/edited.png');
+    });
+
+    it('should use output_format parameter for gpt-image-1', async () => {
+      const mockResponse = {
+        data: [{ url: 'https://example.com/edited.png' }]
+      };
+
+      const undici = await import('undici');
+      (undici.request as any).mockResolvedValueOnce({
+        statusCode: 200,
+        body: {
+          json: async () => mockResponse
+        }
+      });
+
+      vi.mocked(global.fetch).mockResolvedValueOnce({
+        ok: true,
+        arrayBuffer: async () => Buffer.from('image-data')
+      } as any);
+
+      await provider.edit({
+        prompt: 'test edit',
+        baseImage: 'data:image/png;base64,dGVzdA==',
+        model: 'gpt-image-1'
+      });
+
+      const requestCall = (undici.request as any).mock.calls[0];
+      const requestBody = requestCall[1].body.toString();
+      expect(requestBody).toContain('output_format');
+      expect(requestBody).not.toContain('response_format');
+    });
+
+    it('should handle dall-e-2 base64 responses if explicitly requested', async () => {
+      const mockResponse = {
+        data: [{ b64_json: Buffer.from('image-data').toString('base64') }]
+      };
+
+      const undici = await import('undici');
+      (undici.request as any).mockResolvedValueOnce({
+        statusCode: 200,
+        body: {
+          json: async () => mockResponse
+        }
+      });
+
+      const result = await provider.edit({
+        prompt: 'test edit',
+        baseImage: 'data:image/png;base64,dGVzdA==',
+        model: 'dall-e-2'
+      });
+
+      expect(result.images).toHaveLength(1);
+      expect(result.images[0].dataUrl).toContain('base64');
+      expect(result.model).toBe('dall-e-2');
+
+      // Verify fetch was NOT called (base64 response)
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it('should use response_format parameter for dall-e-2', async () => {
+      const mockResponse = {
+        data: [{ b64_json: Buffer.from('image-data').toString('base64') }]
+      };
+
+      const undici = await import('undici');
+      (undici.request as any).mockResolvedValueOnce({
+        statusCode: 200,
+        body: {
+          json: async () => mockResponse
+        }
+      });
+
+      await provider.edit({
+        prompt: 'test edit',
+        baseImage: 'data:image/png;base64,dGVzdA==',
+        model: 'dall-e-2'
+      });
+
+      const requestCall = (undici.request as any).mock.calls[0];
+      const requestBody = requestCall[1].body.toString();
+      expect(requestBody).toContain('response_format');
+      expect(requestBody).not.toContain('output_format');
+    });
+
+    it('should throw error if no image data in response', async () => {
+      const mockResponse = {
+        data: [{ something: 'unexpected' }]
+      };
+
+      const undici = await import('undici');
+      (undici.request as any).mockResolvedValueOnce({
+        statusCode: 200,
+        body: {
+          json: async () => mockResponse
+        }
+      });
+
+      await expect(provider.edit({
+        prompt: 'test',
+        baseImage: 'data:image/png;base64,dGVzdA=='
+      })).rejects.toThrow('No image data in OpenAI response');
+    });
+  });
+
+  describe('DALL-E 3 Size Mapping', () => {
+    beforeEach(() => {
+      provider = new OpenAIProvider();
+    });
+
+    it('should map 1024x1024 to square size', async () => {
+      const mockResponse = {
+        data: [{ b64_json: Buffer.from('image-data').toString('base64') }]
+      };
+
+      const undici = await import('undici');
+      (undici.request as any).mockResolvedValueOnce({
+        statusCode: 200,
+        body: {
+          json: async () => mockResponse
+        }
+      });
+
+      await provider.generate({
+        prompt: 'test',
+        width: 1024,
+        height: 1024
+      });
+
+      const requestCall = (undici.request as any).mock.calls[0];
+      const bodyData = JSON.parse(requestCall[1].body);
+      expect(bodyData.size).toBe('1024x1024');
+    });
+
+    it('should map landscape to 1792x1024', async () => {
+      const mockResponse = {
+        data: [{ b64_json: Buffer.from('image-data').toString('base64') }]
+      };
+
+      const undici = await import('undici');
+      (undici.request as any).mockResolvedValueOnce({
+        statusCode: 200,
+        body: {
+          json: async () => mockResponse
+        }
+      });
+
+      await provider.generate({
+        prompt: 'test',
+        width: 1920,
+        height: 1080
+      });
+
+      const requestCall = (undici.request as any).mock.calls[0];
+      const bodyData = JSON.parse(requestCall[1].body);
+      expect(bodyData.size).toBe('1792x1024');
+    });
+
+    it('should map portrait to 1024x1792', async () => {
+      const mockResponse = {
+        data: [{ b64_json: Buffer.from('image-data').toString('base64') }]
+      };
+
+      const undici = await import('undici');
+      (undici.request as any).mockResolvedValueOnce({
+        statusCode: 200,
+        body: {
+          json: async () => mockResponse
+        }
+      });
+
+      await provider.generate({
+        prompt: 'test',
+        width: 1080,
+        height: 1920
+      });
+
+      const requestCall = (undici.request as any).mock.calls[0];
+      const bodyData = JSON.parse(requestCall[1].body);
+      expect(bodyData.size).toBe('1024x1792');
+    });
+  });
 });
 
 describe('Stability Provider', () => {
