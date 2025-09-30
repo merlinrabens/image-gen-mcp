@@ -92,12 +92,8 @@ export class ClipdropProvider extends ImageProvider {
       const formData = new FormData();
       formData.append('prompt', input.prompt);
 
-      // Add dimensions if specified
-      if (input.width && input.height) {
-        // Clipdrop uses specific aspect ratios
-        const ratio = this.getAspectRatio(input.width, input.height);
-        formData.append('aspect_ratio', ratio);
-      }
+      // Note: Clipdrop API does not support width/height or aspect_ratio parameters
+      // Images are generated at default resolution
 
       // Add other parameters
       if (input.seed !== undefined) {
@@ -353,21 +349,6 @@ export class ClipdropProvider extends ImageProvider {
     };
 
     return endpoints[editType] || endpoints.standard;
-  }
-
-  private getAspectRatio(width: number, height: number): string {
-    const ratio = width / height;
-
-    if (Math.abs(ratio - 1) < 0.1) return '1:1';
-    if (Math.abs(ratio - 1.33) < 0.1) return '4:3';
-    if (Math.abs(ratio - 0.75) < 0.1) return '3:4';
-    if (Math.abs(ratio - 1.77) < 0.1) return '16:9';
-    if (Math.abs(ratio - 0.56) < 0.1) return '9:16';
-    if (Math.abs(ratio - 1.91) < 0.1) return '21:9';
-    if (Math.abs(ratio - 0.52) < 0.1) return '9:21';
-
-    // Default to closest standard ratio
-    return '1:1';
   }
 
   private extractStyle(prompt: string): string {

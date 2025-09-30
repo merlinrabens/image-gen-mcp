@@ -47,22 +47,51 @@ export class StabilityProvider extends ImageProvider {
     try {
       const controller = this.createTimeout();
 
-      const body: any = {
-        prompt: input.prompt,
-        output_format: 'png',
-        aspect_ratio: this.getAspectRatio(width, height)
-      };
+      // Create multipart form data for generation
+      const boundary = `----FormBoundary${Date.now()}`;
+      const parts: Buffer[] = [];
 
-      if (input.seed !== undefined) body.seed = input.seed;
+      // Add prompt
+      parts.push(Buffer.from(
+        `--${boundary}\r\n` +
+        `Content-Disposition: form-data; name="prompt"\r\n\r\n` +
+        `${input.prompt}\r\n`
+      ));
+
+      // Add output format
+      parts.push(Buffer.from(
+        `--${boundary}\r\n` +
+        `Content-Disposition: form-data; name="output_format"\r\n\r\n` +
+        `png\r\n`
+      ));
+
+      // Add aspect ratio
+      parts.push(Buffer.from(
+        `--${boundary}\r\n` +
+        `Content-Disposition: form-data; name="aspect_ratio"\r\n\r\n` +
+        `${this.getAspectRatio(width, height)}\r\n`
+      ));
+
+      // Add seed if provided
+      if (input.seed !== undefined) {
+        parts.push(Buffer.from(
+          `--${boundary}\r\n` +
+          `Content-Disposition: form-data; name="seed"\r\n\r\n` +
+          `${input.seed}\r\n`
+        ));
+      }
+
+      parts.push(Buffer.from(`--${boundary}--\r\n`));
+      const formData = Buffer.concat(parts);
 
       const { statusCode, body: responseBody } = await request(`https://api.stability.ai/v2beta/stable-image/generate/core`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json',
+          'Content-Type': `multipart/form-data; boundary=${boundary}`,
           'Accept': 'image/*'
         },
-        body: JSON.stringify(body),
+        body: formData,
         signal: controller.signal
       });
 

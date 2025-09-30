@@ -169,11 +169,12 @@ export class ReplicateProvider extends ImageProvider {
    */
   private async getModelVersion(model: string): Promise<string> {
     // Hardcoded versions for common models to avoid extra API calls
+    // Updated 2025-09-29 via fetch-replicate-versions.js
     const knownVersions: Record<string, string> = {
-      'black-forest-labs/flux-schnell': 'f2ab8a5bfe79f02f0789a146cf5e73d2a4ff2684a98c2b303d1e1ff3814271be',
-      'black-forest-labs/flux-dev': '612251e5fdca5ca2813771a298f2c3d1c4a96e6ce957b180b6b77937beed5810',
+      'black-forest-labs/flux-schnell': 'c846a69991daf4c0e5d016514849d14ee5b2e6846ce6b9d6f21369e564cfe51e',
+      'black-forest-labs/flux-dev': '6e4a938f85952bdabcc15aa329178c4d681c52bf25a0342403287dc26944661d',
       'stability-ai/sdxl': '7762fd07cf82c948538e41f63f77d685e02b063e37e496e96eefd46c929f9bdc',
-      'lucataco/sdxl-lightning-4step': '727e49a643e999d602a896c774a0658ffefea21465756a6ce24b7ea4165eba6a'
+      'lucataco/sdxl-lightning-4step': '6f7a773af6fc3e8de9d5a3c00be77c17308914bf67772726aff83496ba1e3bbe'
     };
 
     if (knownVersions[model]) {

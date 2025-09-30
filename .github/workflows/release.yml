@@ -1,0 +1,93 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get the previous tag
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          CURRENT_TAG=${GITHUB_REF#refs/tags/}
+
+          if [ -z "$PREVIOUS_TAG" ]; then
+            echo "CHANGELOG=Initial release" >> $GITHUB_OUTPUT
+          else
+            # Generate changelog between tags
+            CHANGELOG=$(git log ${PREVIOUS_TAG}..${CURRENT_TAG} --pretty=format:"- %s (%h)" --no-merges)
+            echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+            echo "$CHANGELOG" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: ${{ github.ref_name }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+          generate_release_notes: true
+          body: |
+            ## 🎨 Image Gen MCP Server ${{ github.ref_name }}
+
+            ### Changes in this release
+
+            ${{ steps.changelog.outputs.CHANGELOG }}
+
+            ### Installation
+
+            ```bash
+            npm install -g image-gen-mcp@latest
+            ```
+
+            ### Quick Start
+
+            ```bash
+            # Test the installation
+            npm run dev
+
+            # Or use with Claude Desktop - add to claude_desktop_config.json:
+            {
+              "mcpServers": {
+                "image-gen": {
+                  "command": "npx",
+                  "args": ["image-gen-mcp"],
+                  "env": {
+                    "OPENAI_API_KEY": "your-key",
+                    "STABILITY_API_KEY": "your-key",
+                    // Add other provider keys as needed
+                  }
+                }
+              }
+            }
+            ```
+
+            ### Supported Providers
+
+            - OpenAI (DALL-E)
+            - Stability AI
+            - Leonardo AI
+            - Ideogram
+            - Black Forest Labs (Flux)
+            - Fal AI
+            - Clipdrop
+            - Replicate
+            - Google Gemini
+
+            ### Documentation
+
+            For full documentation and provider setup, see the [README](https://github.com/${{ github.repository }}/blob/main/README.md)

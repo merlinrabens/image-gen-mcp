@@ -112,10 +112,30 @@ export class IdeogramProvider extends ImageProvider {
       }
 
       // Extract images from response
-      const images = response.data.map((item: any) => ({
-        dataUrl: item.url ? item.url : `data:image/png;base64,${item.base64}`,
-        format: 'png' as const,
-        seed: item.seed // Ideogram returns seed for reproducibility
+      const images = await Promise.all(response.data.map(async (item: any) => {
+        let dataUrl: string;
+        if (item.url) {
+          // If URL is provided, fetch the image and convert to base64
+          const imageResponse = await fetch(item.url);
+          const arrayBuffer = await imageResponse.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
+          dataUrl = this.bufferToDataUrl(buffer, 'image/png');
+        } else if (item.base64) {
+          // Check if base64 already includes the data URL prefix
+          if (item.base64.startsWith('data:')) {
+            dataUrl = item.base64;
+          } else {
+            dataUrl = `data:image/png;base64,${item.base64}`;
+          }
+        } else {
+          throw new ProviderError('No image data in response', this.name, false);
+        }
+
+        return {
+          dataUrl,
+          format: 'png' as const,
+          seed: item.seed // Ideogram returns seed for reproducibility
+        };
       }));
 
         const result = {
@@ -161,29 +181,97 @@ export class IdeogramProvider extends ImageProvider {
       // Extract base image data
       const baseImageData = this.dataUrlToBuffer(input.baseImage);
 
-      const requestBody: any = {
-        edit_request: {
-          prompt: input.prompt,
-          image_file: baseImageData.buffer.toString('base64'),
-          model: input.model || 'V_2'
-        }
-      };
-
-      // Add mask if provided
+      // Create white mask if not provided (edit entire image)
+      let maskBuffer: Buffer;
       if (input.maskImage) {
-        const maskData = this.dataUrlToBuffer(input.maskImage);
-        requestBody.edit_request.mask_file = maskData.buffer.toString('base64');
+        maskBuffer = this.dataUrlToBuffer(input.maskImage).buffer;
+      } else {
+        // Create a proper-sized mask matching the image dimensions
+        try {
+          const sharp = (await import('sharp')).default;
+          const metadata = await sharp(baseImageData.buffer).metadata();
+          const width = metadata.width || 1024;
+          const height = metadata.height || 1024;
+
+          // Create RGB mask with white center and thin black border
+          // Ideogram requires BOTH black and white pixels (validation checks for mixed content)
+          // White = edit area, Black = preserve area
+          // We use 99% white (edit most of image) with 1% black border to satisfy validation
+          const maskPixels = Buffer.alloc(width * height * 3);
+          const borderSize = Math.max(1, Math.floor(width * 0.005)); // 0.5% border
+
+          for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+              const i = y * width + x;
+              // White in center (editable), thin black border (preserved)
+              const isEditable = x >= borderSize && x < width - borderSize &&
+                                 y >= borderSize && y < height - borderSize;
+              const value = isEditable ? 255 : 0;
+              maskPixels[i * 3] = value;     // R
+              maskPixels[i * 3 + 1] = value; // G
+              maskPixels[i * 3 + 2] = value; // B
+            }
+          }
+
+          maskBuffer = await sharp(maskPixels, {
+            raw: { width, height, channels: 3 }
+          }).png({ compressionLevel: 6, palette: false }).toBuffer();
+        } catch (err) {
+          logger.warn('Failed to create proper-sized mask, using 1x1 fallback', { error: err });
+          // Fallback to 1x1 white mask
+          maskBuffer = Buffer.from([
+            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+            0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+            0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+            0x08, 0x00, 0x00, 0x00, 0x00, 0x3A, 0x7E, 0x9B, 0x55,
+            0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41, 0x54,
+            0x08, 0x1D, 0x01, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x02, 0x00, 0x01,
+            0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82
+          ]);
+        }
       }
 
+      // Create multipart form data
+      const boundary = '----IdeogramFormBoundary' + Math.random().toString(36).substring(2);
+      const formParts: Buffer[] = [];
+
+      // Add image file
+      formParts.push(Buffer.from(`--${boundary}\r\n`));
+      formParts.push(Buffer.from(`Content-Disposition: form-data; name="image"; filename="image.png"\r\n`));
+      formParts.push(Buffer.from(`Content-Type: image/png\r\n\r\n`));
+      formParts.push(baseImageData.buffer);
+      formParts.push(Buffer.from(`\r\n`));
+
+      // Add mask file
+      formParts.push(Buffer.from(`--${boundary}\r\n`));
+      formParts.push(Buffer.from(`Content-Disposition: form-data; name="mask"; filename="mask.png"\r\n`));
+      formParts.push(Buffer.from(`Content-Type: image/png\r\n\r\n`));
+      formParts.push(maskBuffer);
+      formParts.push(Buffer.from(`\r\n`));
+
+      // Add prompt
+      formParts.push(Buffer.from(`--${boundary}\r\n`));
+      formParts.push(Buffer.from(`Content-Disposition: form-data; name="prompt"\r\n\r\n`));
+      formParts.push(Buffer.from(input.prompt));
+      formParts.push(Buffer.from(`\r\n`));
+
+      // Note: V3 edit endpoint doesn't support model parameter
+
+      // End boundary
+      formParts.push(Buffer.from(`--${boundary}--\r\n`));
+
+      const formData = Buffer.concat(formParts);
+
       const { statusCode, body } = await request(
-        'https://api.ideogram.ai/edit',
+        'https://api.ideogram.ai/v1/ideogram-v3/edit',
         {
           method: 'POST',
           headers: {
             'Api-Key': this.apiKey,
-            'Content-Type': 'application/json'
+            'Content-Type': `multipart/form-data; boundary=${boundary}`,
+            'Content-Length': formData.length.toString()
           },
-          body: JSON.stringify(requestBody),
+          body: formData,
           signal: controller.signal
         }
       );

@@ -5,6 +5,10 @@ import { LeonardoProvider } from '../src/providers/leonardo.js';
 import { FalProvider } from '../src/providers/fal.js';
 import { IdeogramProvider } from '../src/providers/ideogram.js';
 import { ClipdropProvider } from '../src/providers/clipdrop.js';
+import { OpenAIProvider } from '../src/providers/openai.js';
+import { StabilityProvider } from '../src/providers/stability.js';
+import { ReplicateProvider } from '../src/providers/replicate.js';
+import { GeminiProvider } from '../src/providers/gemini.js';
 import { ProviderError } from '../src/types.js';
 
 // Mock fetch globally
@@ -184,7 +188,7 @@ describe('BFL Provider', () => {
     // Verify the request was called with correct parameters
     const undiciModule = await import('undici');
     expect(undiciModule.request).toHaveBeenCalledWith(
-      expect.stringContaining('api.bfl.ai'),
+      expect.stringContaining('api.bfl.ml'),
       expect.objectContaining({
         method: 'POST',
         headers: expect.objectContaining({
@@ -472,5 +476,264 @@ describe('Clipdrop Provider', () => {
     const fetchCall = (global.fetch as any).mock.calls[0];
     expect(fetchCall[0]).toContain('/remove-background/v1');
     expect(result.warnings).toContain('Background removed - image has transparency');
+  });
+});
+
+describe('OpenAI Provider', () => {
+  let provider: OpenAIProvider;
+
+  beforeEach(() => {
+    process.env.OPENAI_API_KEY = 'sk-test-openai-key-123456789';
+    provider = new OpenAIProvider();
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    delete process.env.OPENAI_API_KEY;
+  });
+
+  it('should be configured with valid API key', () => {
+    expect(provider.isConfigured()).toBe(true);
+
+    delete process.env.OPENAI_API_KEY;
+    const provider2 = new OpenAIProvider();
+    expect(provider2.isConfigured()).toBe(false);
+  });
+
+  it('should handle generation with DALL-E 3', async () => {
+    provider = new OpenAIProvider();
+    const mockResponse = {
+      data: [{ url: 'https://example.com/image.png' }]
+    };
+
+    const undici = await import('undici');
+    (undici.request as any).mockResolvedValueOnce({
+      statusCode: 200,
+      body: {
+        json: async () => mockResponse
+      }
+    });
+
+    vi.mocked(global.fetch).mockResolvedValueOnce({
+      ok: true,
+      arrayBuffer: async () => Buffer.from('image-data')
+    } as any);
+
+    const result = await provider.generate({
+      prompt: 'test image',
+      model: 'dall-e-3'
+    });
+
+    expect(result.provider).toBe('OPENAI');
+    expect(result.model).toBe('dall-e-3');
+    expect(result.images).toHaveLength(1);
+    expect(result.images[0].dataUrl).toContain('base64');
+  });
+
+  it('should handle API errors properly', async () => {
+    const undici = await import('undici');
+    (undici.request as any).mockResolvedValueOnce({
+      statusCode: 400,
+      body: {
+        json: async () => ({ error: { message: 'Invalid request' } })
+      }
+    });
+
+    await expect(provider.generate({ prompt: 'test' })).rejects.toThrow();
+  });
+});
+
+describe('Stability Provider', () => {
+  let provider: StabilityProvider;
+
+  beforeEach(() => {
+    process.env.STABILITY_API_KEY = 'sk-test-stability-key-123456789';
+    provider = new StabilityProvider();
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    delete process.env.STABILITY_API_KEY;
+  });
+
+  it('should be configured with valid API key', () => {
+    expect(provider.isConfigured()).toBe(true);
+
+    delete process.env.STABILITY_API_KEY;
+    const provider2 = new StabilityProvider();
+    expect(provider2.isConfigured()).toBe(false);
+  });
+
+  it('should handle generation with proper validation', async () => {
+    provider = new StabilityProvider();
+    const mockImage = Buffer.from('fake-png-data');
+
+    const undici = await import('undici');
+    (undici.request as any).mockResolvedValueOnce({
+      statusCode: 200,
+      body: {
+        arrayBuffer: async () => mockImage.buffer
+      }
+    });
+
+    const result = await provider.generate({
+      prompt: 'test image',
+      width: 1024,
+      height: 1024
+    });
+
+    expect(result.provider).toBe('STABILITY');
+    expect(result.images).toHaveLength(1);
+    expect(result.images[0].dataUrl).toContain('base64');
+
+    const undiciModule = await import('undici');
+    expect(undiciModule.request).toHaveBeenCalledWith(
+      expect.stringContaining('api.stability.ai'),
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'Authorization': 'Bearer sk-test-stability-key-123456789'
+        })
+      })
+    );
+  });
+
+  it('should handle API errors properly', async () => {
+    const undici = await import('undici');
+    (undici.request as any).mockResolvedValueOnce({
+      statusCode: 400,
+      body: {
+        json: async () => ({ message: 'Invalid parameters' })
+      }
+    });
+
+    await expect(provider.generate({ prompt: 'test' })).rejects.toThrow();
+  });
+});
+
+describe('Replicate Provider', () => {
+  let provider: ReplicateProvider;
+
+  beforeEach(() => {
+    process.env.REPLICATE_API_TOKEN = 'r8_test-replicate-key-123456789';
+    provider = new ReplicateProvider();
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    delete process.env.REPLICATE_API_TOKEN;
+  });
+
+  it('should be configured with valid API key', () => {
+    expect(provider.isConfigured()).toBe(true);
+
+    delete process.env.REPLICATE_API_TOKEN;
+    const provider2 = new ReplicateProvider();
+    expect(provider2.isConfigured()).toBe(false);
+  });
+
+  it('should handle configuration and error handling', async () => {
+    // Re-create provider
+    provider = new ReplicateProvider();
+
+    // Test configuration
+    expect(provider.isConfigured()).toBe(true);
+    expect(provider.getCapabilities().supportsGenerate).toBe(true);
+    expect(provider.getCapabilities().supportsEdit).toBe(false);
+
+    // Test error handling for edit (not supported)
+    await expect(provider.edit({
+      prompt: 'test',
+      baseImage: 'data:image/png;base64,test'
+    })).rejects.toThrow('does not support direct image editing');
+  });
+
+  it('should handle API errors properly', async () => {
+    const undici = await import('undici');
+    (undici.request as any).mockResolvedValueOnce({
+      statusCode: 400,
+      body: {
+        json: async () => ({ detail: 'Invalid input' })
+      }
+    });
+
+    await expect(provider.generate({ prompt: 'test' })).rejects.toThrow();
+  });
+});
+
+describe('Gemini Provider', () => {
+  let provider: GeminiProvider;
+
+  beforeEach(() => {
+    process.env.GEMINI_API_KEY = 'AIza-test-gemini-key-123456789';
+    provider = new GeminiProvider();
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    delete process.env.GEMINI_API_KEY;
+  });
+
+  it('should be configured with valid API key', () => {
+    expect(provider.isConfigured()).toBe(true);
+
+    delete process.env.GEMINI_API_KEY;
+    const provider2 = new GeminiProvider();
+    expect(provider2.isConfigured()).toBe(false);
+  });
+
+  it('should handle generation with proper validation', async () => {
+    provider = new GeminiProvider();
+    const mockResponse = {
+      candidates: [{
+        content: {
+          parts: [{
+            inlineData: {
+              mimeType: 'image/png',
+              data: Buffer.from('image-data').toString('base64')
+            }
+          }]
+        }
+      }]
+    };
+
+    const undici = await import('undici');
+    (undici.request as any).mockResolvedValueOnce({
+      statusCode: 200,
+      body: {
+        json: async () => mockResponse
+      }
+    });
+
+    const result = await provider.generate({
+      prompt: 'test image',
+      width: 1024,
+      height: 1024
+    });
+
+    expect(result.provider).toBe('GEMINI');
+    expect(result.model).toBe('gemini-2.5-flash-image-preview');
+    expect(result.images).toHaveLength(1);
+    expect(result.images[0].dataUrl).toContain('base64');
+
+    const undiciModule = await import('undici');
+    expect(undiciModule.request).toHaveBeenCalledWith(
+      expect.stringContaining('generativelanguage.googleapis.com'),
+      expect.objectContaining({
+        method: 'POST'
+      })
+    );
+  });
+
+  it('should handle API errors properly', async () => {
+    const undici = await import('undici');
+    (undici.request as any).mockResolvedValueOnce({
+      statusCode: 400,
+      body: {
+        json: async () => ({ error: { message: 'Invalid prompt' } })
+      }
+    });
+
+    await expect(provider.generate({ prompt: 'test' })).rejects.toThrow();
   });
 });
