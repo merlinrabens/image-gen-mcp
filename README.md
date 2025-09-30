@@ -60,10 +60,19 @@ npm install -g @merlinrabens/image-gen-mcp
 
 ### Configuration
 
-Edit your Claude Desktop config to add the MCP server:
+Add the MCP server to your MCP client configuration. The exact location depends on which client you're using.
 
-**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+#### MCP Client Configuration Files
+
+**Claude Desktop**:
+- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+
+**Claude Code**:
+- macOS/Linux: `~/.claude.json`
+- Windows: `%USERPROFILE%\.claude.json`
+
+**Cursor** and other MCP clients: Check your client's documentation for the config file location.
 
 #### Recommended Setup (NPM Package)
 
@@ -112,10 +121,11 @@ Get your API keys from:
 
 ### Testing
 
-After configuration, restart Claude Desktop and test:
+After configuration, restart your MCP client and test:
 
-1. Ask Claude: "Check image-gen-mcp status with health.ping"
-2. Generate your first image: "Generate a serene mountain landscape"
+1. Check server status: "Check image-gen-mcp status with health.ping"
+2. List configured providers: "List available image-gen-mcp providers"
+3. Generate your first image: "Generate a serene mountain landscape"
 
 ## Development Setup
 
@@ -444,9 +454,9 @@ image-gen-mcp/
 
 ## Architecture Notes
 
-- **Stdio Transport**: Required by MCP spec for Claude Desktop integration
+- **Stdio Transport**: Uses MCP stdio protocol for maximum client compatibility
 - **Intelligent Selection**: Analyzes prompts to automatically choose optimal provider
-- **Data URLs**: Images returned as base64 for direct Claude preview (warning for >5MB)
+- **Data URLs**: Images returned as base64 data URLs for direct preview (warning for >5MB)
 - **Circuit Breaker**: Intelligent error categorization for fallback decisions
 - **Provider Pattern**: Pluggable adapters with abstract base class
 - **Minimal Dependencies**: Only essential packages for lean deployment
@@ -525,11 +535,11 @@ MIT
 
 ## Next Steps
 
-1. Get API keys from your preferred providers (see API Keys section above)
-2. Add the MCP server to your Claude Desktop config (see Configuration section)
+1. Get API keys from your preferred providers (see [API Keys](#api-keys) section)
+2. Add the MCP server to your MCP client config (see [Configuration](#configuration) section)
 3. Add your API keys to the `env` field in the config
-4. Restart Claude Desktop
-5. Test with `health.ping` in Claude
+4. Restart your MCP client (Claude Desktop, Claude Code, Cursor, etc.)
+5. Test the server: "Check image-gen-mcp status with health.ping"
 6. Generate your first image: "Generate a serene mountain landscape"
 
-For local development or contributions, see the Development Setup section.
+For local development or contributions, see the [Development Setup](#development-setup) section.
