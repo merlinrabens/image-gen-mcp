@@ -158,12 +158,13 @@ describe('Provider Selector', () => {
       expect(limitedProviders).toContain(provider);
     });
 
-    it('should default to first available provider for generic prompts', () => {
+    it('should default to preferred fallback chain order for generic prompts', () => {
       const provider = selectProvider(
         'nice image',
         ['GEMINI', 'OPENAI']
       );
-      expect(provider).toBe('GEMINI');
+      // OPENAI is prioritized in fallback chain over GEMINI
+      expect(provider).toBe('OPENAI');
     });
   });
 
@@ -182,7 +183,8 @@ describe('Provider Selector', () => {
 
     it('should provide generic recommendations for unclear prompts', () => {
       const recommendations = getProviderRecommendations('something nice');
-      expect(recommendations.primary).toContain('DALLE');
+      // Updated to match new fallback chain: OPENAI, STABILITY, BFL
+      expect(recommendations.primary).toContain('OPENAI');
       expect(recommendations.reason).toContain('No specific use case');
     });
 
