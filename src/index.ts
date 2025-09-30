@@ -29,6 +29,28 @@ async function debugLog(msg: string) {
   await fs.appendFile(DEBUG_FILE, line).catch(() => {});
 }
 
+/**
+ * Determine the output directory for generated images
+ * Default: .image-gen-mcp in current working directory
+ */
+async function getOutputDirectory(): Promise<string> {
+  const configuredDir = process.env.IMAGE_OUTPUT_DIR;
+
+  if (!configuredDir || configuredDir === 'cwd') {
+    // DEFAULT: Use .image-gen-mcp in current working directory
+    const dir = path.join(process.cwd(), '.image-gen-mcp');
+    await fs.mkdir(dir, { recursive: true });
+    return dir;
+  } else if (configuredDir === 'temp') {
+    // Explicitly use temp directory (backward compatibility)
+    return os.tmpdir();
+  } else {
+    // Use absolute path provided
+    await fs.mkdir(configuredDir, { recursive: true });
+    return configuredDir;
+  }
+}
+
 // DO NOT touch stdin/stdout before handshake!
 
 /**
@@ -87,27 +109,42 @@ function getFieldSchema(field: z.ZodType): any {
 
 async function cleanupOldTempFiles(): Promise<void> {
   try {
-    const tmpDir = os.tmpdir();
-    const files = await fs.readdir(tmpDir);
+    // Get the current output directory
+    const outputDir = await getOutputDirectory().catch(() => null);
+
+    // Clean up files in both possible locations
+    const dirsToClean = Array.from(new Set([
+      os.tmpdir(),  // Always check temp dir for backward compatibility
+      outputDir    // Check configured output directory
+    ].filter(dir => dir !== null))); // Remove nulls and duplicates
+
     const now = Date.now();
 
-    for (const file of files) {
-      if (file.startsWith(TEMP_FILE_PREFIX)) {
-        const filepath = path.join(tmpDir, file);
-        try {
-          const stats = await fs.stat(filepath);
-          const age = now - stats.mtimeMs;
-          if (age > TEMP_FILE_MAX_AGE_MS) {
-            await fs.unlink(filepath);
-            logger.debug(`Cleaned up old temp file: ${file}`);
+    for (const dir of dirsToClean) {
+      try {
+        const files = await fs.readdir(dir);
+
+        for (const file of files) {
+          if (file.startsWith(TEMP_FILE_PREFIX)) {
+            const filepath = path.join(dir, file);
+            try {
+              const stats = await fs.stat(filepath);
+              const age = now - stats.mtimeMs;
+              if (age > TEMP_FILE_MAX_AGE_MS) {
+                await fs.unlink(filepath);
+                logger.debug(`Cleaned up old file: ${file} from ${dir}`);
+              }
+            } catch (error) {
+              // File might already be deleted, ignore
+            }
           }
-        } catch (error) {
-          // File might already be deleted, ignore
         }
+      } catch (error) {
+        // Directory might not exist yet, ignore
       }
     }
   } catch (error) {
-    logger.warn('Failed to cleanup temp files', error);
+    logger.warn('Failed to cleanup old files', error);
   }
 }
 
@@ -233,13 +270,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             }
           });
 
-          // Save images to temp directory to avoid huge responses
+          // Save images to configured directory
+          const outputDir = await getOutputDirectory();
           const savedImages = await Promise.all(result.images.map(async (img, idx) => {
             const base64Data = img.dataUrl.split(',')[1];
             const buffer = Buffer.from(base64Data, 'base64');
             const hash = createHash('md5').update(buffer).digest('hex');
             const filename = `${TEMP_FILE_PREFIX}${result.provider.toLowerCase()}-${hash}-${Date.now()}-${idx}.${img.format || 'png'}`;
-            const filepath = path.join(os.tmpdir(), filename);
+            const filepath = path.join(outputDir, filename);
             await fs.writeFile(filepath, buffer);
             return {
               path: filepath,
@@ -308,13 +346,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         const result = await provider.edit(input);
 
-        // Save images to temp directory to avoid huge responses (same as generate)
+        // Save images to configured directory (same as generate)
+        const outputDir = await getOutputDirectory();
         const savedImages = await Promise.all(result.images.map(async (img, idx) => {
           const base64Data = img.dataUrl.split(',')[1];
           const buffer = Buffer.from(base64Data, 'base64');
           const hash = createHash('md5').update(buffer).digest('hex');
           const filename = `${TEMP_FILE_PREFIX}${result.provider.toLowerCase()}-edit-${hash}-${Date.now()}-${idx}.${img.format || 'png'}`;
-          const filepath = path.join(os.tmpdir(), filename);
+          const filepath = path.join(outputDir, filename);
           await fs.writeFile(filepath, buffer);
           return {
             path: filepath,

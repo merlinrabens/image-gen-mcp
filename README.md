@@ -105,6 +105,7 @@ Add the MCP server to your MCP client configuration. The exact location depends 
 - `DEFAULT_PROVIDER`: Set to `"auto"` for intelligent selection or specify a provider name
 - `LOG_LEVEL`: `"debug"` | `"info"` | `"warn"` | `"error"`
 - `DISABLE_FALLBACK`: Set to `"true"` to prevent fallback to other providers
+- `IMAGE_OUTPUT_DIR`: Where to save generated images (see [Image Storage](#image-storage) section)
 
 ### API Keys
 
@@ -179,6 +180,52 @@ For development with hot reload:
 ```
 
 **Security Note**: API keys in the config file are stored in plain text. Ensure proper file permissions.
+
+## Image Storage
+
+By default, generated images are saved to `.image-gen-mcp/` in your current working directory. This keeps images organized with your project and persists them across system restarts.
+
+### Storage Options
+
+Configure where images are saved using the `IMAGE_OUTPUT_DIR` environment variable:
+
+| Value | Description | Example |
+|-------|-------------|---------|
+| Not set | **Default**: `.image-gen-mcp/` in current working directory | `./image-gen-mcp/` |
+| `"cwd"` | Explicitly use `.image-gen-mcp/` in current directory | `./image-gen-mcp/` |
+| `"temp"` | Use system temp directory (old behavior) | `/tmp/` or `%TEMP%` |
+| `/absolute/path` | Save to specific directory | `/Users/me/images/` |
+
+### Configuration Example
+
+```json
+{
+  "mcpServers": {
+    "image-gen-mcp": {
+      "command": "npx",
+      "args": ["-y", "@merlinrabens/image-gen-mcp@latest"],
+      "env": {
+        "OPENAI_API_KEY": "sk-...",
+        // Optional: Change image storage location
+        "IMAGE_OUTPUT_DIR": "temp"  // or "/custom/path" or leave unset for default
+      }
+    }
+  }
+}
+```
+
+### .gitignore
+
+If using the default `.image-gen-mcp/` directory, add it to your `.gitignore`:
+
+```gitignore
+# MCP generated images
+.image-gen-mcp/
+```
+
+### Automatic Cleanup
+
+Old images (>1 hour) are automatically cleaned up to prevent disk space issues. The cleanup runs every 30 minutes.
 
 ## Available Tools
 
