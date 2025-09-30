@@ -235,19 +235,54 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'image.generate': {
         const input = GenerateInputSchema.parse(args);
-        const provider = Config.getProviderWithFallback(input.provider, input.prompt);
 
-        // Validate input against provider capabilities
-        const capabilities = provider.getCapabilities();
-        if (input.width && capabilities.maxWidth && input.width > capabilities.maxWidth) {
-          throw new Error(
-            `Width ${input.width} exceeds provider ${provider.name} maximum (${capabilities.maxWidth})`
-          );
-        }
-        if (input.height && capabilities.maxHeight && input.height > capabilities.maxHeight) {
-          throw new Error(
-            `Height ${input.height} exceeds provider ${provider.name} maximum (${capabilities.maxHeight})`
-          );
+        // For auto-selection, filter providers by dimension constraints
+        let provider;
+        if (input.provider === 'auto' || !input.provider) {
+          const allConfigured = Config.getConfiguredProviders();
+
+          // Filter providers that support the requested dimensions
+          const compatibleProviders = allConfigured.filter(name => {
+            const p = Config.getProvider(name);
+            if (!p) return false;
+            const caps = p.getCapabilities();
+
+            // Check width constraint
+            if (input.width && caps.maxWidth && input.width > caps.maxWidth) {
+              return false;
+            }
+            // Check height constraint
+            if (input.height && caps.maxHeight && input.height > caps.maxHeight) {
+              return false;
+            }
+            return true;
+          });
+
+          if (compatibleProviders.length === 0) {
+            throw new Error(
+              `No providers support the requested dimensions (${input.width || 'default'}x${input.height || 'default'}). ` +
+              `Try reducing image size or specify a different provider.`
+            );
+          }
+
+          const { selectProvider } = await import('./services/providerSelector.js');
+          const selectedName = selectProvider(input.prompt, compatibleProviders);
+          provider = selectedName ? Config.getProvider(selectedName)! : Config.getProviderWithFallback(undefined, input.prompt);
+        } else {
+          provider = Config.getProviderWithFallback(input.provider, input.prompt);
+
+          // Validate explicit provider supports dimensions
+          const capabilities = provider.getCapabilities();
+          if (input.width && capabilities.maxWidth && input.width > capabilities.maxWidth) {
+            throw new Error(
+              `Width ${input.width} exceeds provider ${provider.name} maximum (${capabilities.maxWidth})`
+            );
+          }
+          if (input.height && capabilities.maxHeight && input.height > capabilities.maxHeight) {
+            throw new Error(
+              `Height ${input.height} exceeds provider ${provider.name} maximum (${capabilities.maxHeight})`
+            );
+          }
         }
 
         logger.info(`Generating image with ${provider.name}`, {
