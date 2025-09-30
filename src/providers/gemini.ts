@@ -154,8 +154,8 @@ export class GeminiProvider extends ImageProvider {
     try {
       const controller = this.createTimeout(60000);
 
-      // Extract base image data
-      const baseImageData = this.dataUrlToBuffer(input.baseImage);
+      // Extract base image data (supports both data URLs and file paths)
+      const baseImageData = await this.getImageBuffer(input.baseImage);
 
       // Build multi-modal request for image editing
       // Gemini 2.5 Flash Image can handle up to 3 images for composition/editing
@@ -170,7 +170,7 @@ export class GeminiProvider extends ImageProvider {
 
       // Add mask if provided (Gemini treats this as a second image for guidance)
       if (input.maskImage) {
-        const maskData = this.dataUrlToBuffer(input.maskImage);
+        const maskData = await this.getImageBuffer(input.maskImage);
         parts.push({
           inlineData: {
             mimeType: maskData.mimeType,

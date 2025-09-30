@@ -173,8 +173,8 @@ export class BFLProvider extends ImageProvider {
       const controller = this.createTimeout(60000);
 
       try {
-        // Extract base image data with size validation
-        const baseImageData = this.dataUrlToBuffer(input.baseImage);
+        // Extract base image data with size validation (supports both data URLs and file paths)
+        const baseImageData = await this.getImageBuffer(input.baseImage);
 
         let endpoint: string;
         let requestBody: Record<string, any>;
@@ -202,7 +202,7 @@ export class BFLProvider extends ImageProvider {
           };
 
           // Add mask for Fill
-          const maskData = this.dataUrlToBuffer(input.maskImage!);
+          const maskData = await this.getImageBuffer(input.maskImage!);
           requestBody.mask = maskData.buffer.toString('base64');
         }
 

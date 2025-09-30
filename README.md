@@ -280,14 +280,19 @@ Response: {
 ```
 
 ### `image.edit`
-Edit existing images with text prompts (OpenAI and Stability only).
+Edit existing images with text prompts. Supports multiple providers including OpenAI, Stability, Ideogram, BFL, Gemini, and Clipdrop.
+
+The `baseImage` and `maskImage` fields support:
+- **Data URLs**: `data:image/png;base64,...`
+- **File paths**: `/path/to/image.png`
+- **File URLs**: `file:///path/to/image.png`
 
 ```
 Request: {
   "prompt": "Add a rainbow to the sky",
-  "baseImage": "data:image/png;base64,...",
-  "maskImage": "data:image/png;base64,...",  // Optional
-  "provider": "OPENAI"                       // Optional
+  "baseImage": "/path/to/image.png",         // Can be file path or data URL
+  "maskImage": "/path/to/mask.png",          // Optional (file path or data URL)
+  "provider": "OPENAI"                       // Optional (auto-selects if not specified)
 }
 ```
 

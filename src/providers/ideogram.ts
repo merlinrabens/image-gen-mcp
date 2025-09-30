@@ -178,13 +178,13 @@ export class IdeogramProvider extends ImageProvider {
     try {
       const controller = this.createTimeout(60000);
 
-      // Extract base image data
-      const baseImageData = this.dataUrlToBuffer(input.baseImage);
+      // Extract base image data (supports both data URLs and file paths)
+      const baseImageData = await this.getImageBuffer(input.baseImage);
 
       // Create white mask if not provided (edit entire image)
       let maskBuffer: Buffer;
       if (input.maskImage) {
-        maskBuffer = this.dataUrlToBuffer(input.maskImage).buffer;
+        maskBuffer = (await this.getImageBuffer(input.maskImage)).buffer;
       } else {
         // Create a proper-sized mask matching the image dimensions
         try {

@@ -131,8 +131,8 @@ export class StabilityProvider extends ImageProvider {
     try {
       const controller = this.createTimeout();
 
-      // Extract base64 data from data URL
-      const baseImageData = this.dataUrlToBuffer(input.baseImage);
+      // Extract base64 data from data URL or file path
+      const baseImageData = await this.getImageBuffer(input.baseImage);
 
       // Create multipart form data
       const boundary = `----FormBoundary${Date.now()}`;
