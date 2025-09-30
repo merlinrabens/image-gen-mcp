@@ -288,9 +288,29 @@ export class IdeogramProvider extends ImageProvider {
         throw new ProviderError(message, this.name, isRetryable, response);
       }
 
-      const images = response.data.map((item: any) => ({
-        dataUrl: item.url ? item.url : `data:image/png;base64,${item.base64}`,
-        format: 'png' as const
+      const images = await Promise.all(response.data.map(async (item: any) => {
+        let dataUrl: string;
+        if (item.url) {
+          // If URL is provided, fetch the image and convert to base64
+          const imageResponse = await fetch(item.url);
+          const arrayBuffer = await imageResponse.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
+          dataUrl = this.bufferToDataUrl(buffer, 'image/png');
+        } else if (item.base64) {
+          // Check if base64 already includes the data URL prefix
+          if (item.base64.startsWith('data:')) {
+            dataUrl = item.base64;
+          } else {
+            dataUrl = `data:image/png;base64,${item.base64}`;
+          }
+        } else {
+          throw new ProviderError('No image data in response', this.name, false);
+        }
+
+        return {
+          dataUrl,
+          format: 'png' as const
+        };
       }));
 
       return {
