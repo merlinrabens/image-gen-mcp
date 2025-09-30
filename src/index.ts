@@ -400,6 +400,30 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           );
         }
 
+        // BFL Kontext has issues preserving non-square aspect ratios - exclude it for non-1:1 images
+        if (provider.name === 'BFL' && (input.provider === 'auto' || !input.provider)) {
+          // Detect input image dimensions
+          const sharp = await import('sharp');
+          const imageBuffer = input.baseImage.startsWith('data:')
+            ? Buffer.from(input.baseImage.split(',')[1], 'base64')
+            : await fs.readFile(input.baseImage.replace('file://', ''));
+          const metadata = await sharp.default(imageBuffer).metadata();
+          const ratio = (metadata.width || 1) / (metadata.height || 1);
+
+          // If aspect ratio is not close to 1:1 (square), use a different provider
+          if (Math.abs(ratio - 1) > 0.05) {
+            logger.info(`BFL selected but input is non-square (${metadata.width}x${metadata.height}), using fallback`);
+            // Get alternative edit providers excluding BFL
+            const alternatives = Config.getConfiguredEditProviders().filter(name => name !== 'BFL');
+            if (alternatives.length > 0) {
+              const { selectProvider } = await import('./services/providerSelector.js');
+              const altName = selectProvider(input.prompt, alternatives);
+              provider = altName ? Config.getProvider(altName)! : Config.getProvider(alternatives[0])!;
+              logger.info(`Using ${provider.name} instead for aspect ratio preservation`);
+            }
+          }
+        }
+
         const result = await provider.edit(input);
 
         // Save images to configured directory (same as generate)
