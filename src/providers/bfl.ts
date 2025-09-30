@@ -10,15 +10,17 @@ import { logger } from '../util/logger.js';
  */
 export class BFLProvider extends ImageProvider {
   readonly name = 'BFL';
-  private apiKey: string | undefined;
 
   constructor() {
     super();
-    this.apiKey = process.env.BFL_API_KEY;
+  }
+
+  private getApiKey(): string | undefined {
+    return process.env.BFL_API_KEY;
   }
 
   isConfigured(): boolean {
-    return !!this.apiKey;
+    return !!this.getApiKey();
   }
 
   getRequiredEnvVars(): string[] {
@@ -49,7 +51,8 @@ export class BFLProvider extends ImageProvider {
 
   async generate(input: GenerateInput): Promise<ProviderResult> {
     // Validate API key
-    if (!this.validateApiKey(this.apiKey)) {
+    const apiKey = this.getApiKey();
+    if (!this.validateApiKey(apiKey)) {
       throw new ProviderError('BFL API key not configured or invalid', this.name, false);
     }
 
@@ -103,7 +106,7 @@ export class BFLProvider extends ImageProvider {
         {
           method: 'POST',
           headers: {
-            'X-Key': this.apiKey,
+            'X-Key': apiKey,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify(requestBody),
@@ -122,7 +125,7 @@ export class BFLProvider extends ImageProvider {
       // Handle async generation (BFL returns a task ID for polling)
       if (response.id && !response.sample) {
         // Poll for result
-        const polledResponse = await this.pollForResult(response.id, controller);
+        const polledResponse = await this.pollForResult(response.id, controller, apiKey!);
         const result = await this.processResult(polledResponse, model);
         this.cacheResult(cacheKey, result);
         return result;
@@ -150,7 +153,8 @@ export class BFLProvider extends ImageProvider {
 
   async edit(input: EditInput): Promise<ProviderResult> {
     // Validate API key
-    if (!this.validateApiKey(this.apiKey)) {
+    const apiKey = this.getApiKey();
+    if (!this.validateApiKey(apiKey)) {
       throw new ProviderError('BFL API key not configured or invalid', this.name, false);
     }
 
@@ -211,7 +215,7 @@ export class BFLProvider extends ImageProvider {
         {
           method: 'POST',
           headers: {
-            'X-Key': this.apiKey,
+            'X-Key': apiKey,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify(requestBody),
@@ -229,7 +233,7 @@ export class BFLProvider extends ImageProvider {
 
       // Handle async result
       if (response.id && !response.sample) {
-        const polledResponse = await this.pollForResult(response.id, controller);
+        const polledResponse = await this.pollForResult(response.id, controller, apiKey!);
         return await this.processResult(polledResponse, model);
       }
 
@@ -286,7 +290,7 @@ export class BFLProvider extends ImageProvider {
   /**
    * Poll for async result with exponential backoff
    */
-  private async pollForResult(taskId: string, controller: AbortController): Promise<BFLGenerateResponse> {
+  private async pollForResult(taskId: string, controller: AbortController, apiKey: string): Promise<BFLGenerateResponse> {
     const maxAttempts = 30;
     const initialDelay = 1000; // 1 second
     const maxDelay = 10000; // 10 seconds
@@ -302,7 +306,7 @@ export class BFLProvider extends ImageProvider {
         {
           method: 'GET',
           headers: {
-            'X-Key': this.apiKey!
+            'X-Key': apiKey!
           },
           signal: controller.signal
         }

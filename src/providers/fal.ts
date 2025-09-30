@@ -22,16 +22,18 @@ import { logger } from '../util/logger.js';
 export class FalProvider extends ImageProvider {
   readonly name = 'FAL';
 
-  private apiKey?: string;
   private baseUrl = 'https://fal.run';
 
   constructor() {
     super();
-    this.apiKey = process.env.FAL_API_KEY;
+  }
+
+  private getApiKey(): string | undefined {
+    return process.env.FAL_API_KEY;
   }
 
   isConfigured(): boolean {
-    return !!this.apiKey;
+    return !!this.getApiKey();
   }
 
   getRequiredEnvVars(): string[] {
@@ -65,7 +67,8 @@ export class FalProvider extends ImageProvider {
 
   async generate(input: GenerateInput): Promise<ProviderResult> {
     // Validate API key
-    if (!this.validateApiKey(this.apiKey)) {
+    const apiKey = this.getApiKey();
+    if (!this.validateApiKey(apiKey)) {
       throw new ProviderError(
         'FAL_API_KEY not configured or invalid',
         this.name,
@@ -96,7 +99,7 @@ export class FalProvider extends ImageProvider {
         const queueResponse = await fetch(`${this.baseUrl}/${model}`, {
         method: 'POST',
         headers: {
-          'Authorization': `Key ${this.apiKey}`,
+          'Authorization': `Key ${apiKey}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(requestBody)
@@ -122,7 +125,7 @@ export class FalProvider extends ImageProvider {
 
         // For slower models, poll the request ID
         if (result.request_id) {
-          const processedResult = await this.pollForResult(result.request_id, model, input, controller);
+          const processedResult = await this.pollForResult(result.request_id, model, input, controller, apiKey!);
           this.cacheResult(cacheKey, processedResult);
           return processedResult;
         }
@@ -242,7 +245,8 @@ export class FalProvider extends ImageProvider {
     requestId: string,
     model: string,
     input: GenerateInput,
-    _controller: AbortController
+    _controller: AbortController,
+    apiKey: string
   ): Promise<ProviderResult> {
     const maxAttempts = 30;
     const initialDelay = 100; // Fast models start with short delay
@@ -253,7 +257,7 @@ export class FalProvider extends ImageProvider {
         `${this.baseUrl}/${model}/requests/${requestId}`,
         {
           headers: {
-            'Authorization': `Key ${this.apiKey}`
+            'Authorization': `Key ${apiKey}`
           }
         }
       );
