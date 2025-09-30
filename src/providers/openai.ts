@@ -163,11 +163,21 @@ export class OpenAIProvider extends ImageProvider {
         `${input.prompt}\r\n`
       ));
 
-      parts.push(Buffer.from(
-        `--${boundary}\r\n` +
-        `Content-Disposition: form-data; name="response_format"\r\n\r\n` +
-        `b64_json\r\n`
-      ));
+      // response_format only supported for dall-e-2, gpt-image-1 uses output_format
+      if (model === 'dall-e-2') {
+        parts.push(Buffer.from(
+          `--${boundary}\r\n` +
+          `Content-Disposition: form-data; name="response_format"\r\n\r\n` +
+          `b64_json\r\n`
+        ));
+      } else {
+        // gpt-image-1 uses output_format and returns URL by default
+        parts.push(Buffer.from(
+          `--${boundary}\r\n` +
+          `Content-Disposition: form-data; name="output_format"\r\n\r\n` +
+          `png\r\n`
+        ));
+      }
 
       parts.push(Buffer.from(
         `--${boundary}\r\n` +
@@ -197,9 +207,25 @@ export class OpenAIProvider extends ImageProvider {
         throw new ProviderError(message, this.name, isRetryable, response);
       }
 
-      const images = response.data.map((img: any) => ({
-        dataUrl: `data:image/png;base64,${img.b64_json}`,
-        format: 'png' as const
+      // Handle response based on model
+      const images = await Promise.all(response.data.map(async (img: any) => {
+        if (img.b64_json) {
+          // dall-e-2 returns base64
+          return {
+            dataUrl: `data:image/png;base64,${img.b64_json}`,
+            format: 'png' as const
+          };
+        } else if (img.url) {
+          // gpt-image-1 returns URL - download and convert to data URL
+          const imageResponse = await fetch(img.url);
+          const arrayBuffer = await imageResponse.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
+          return {
+            dataUrl: this.bufferToDataUrl(buffer, 'image/png'),
+            format: 'png' as const
+          };
+        }
+        throw new ProviderError('No image data in OpenAI response', this.name, false);
       }));
 
       return {
