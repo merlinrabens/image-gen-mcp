@@ -104,6 +104,23 @@ export class Config {
   }
 
   /**
+   * Get list of configured providers that support editing
+   */
+  static getConfiguredEditProviders(): ProviderName[] {
+    const configured: ProviderName[] = [];
+    const allNames: ProviderName[] = ['MOCK', 'OPENAI', 'STABILITY', 'REPLICATE', 'GEMINI', 'IDEOGRAM', 'BFL', 'LEONARDO', 'FAL', 'CLIPDROP'];
+
+    for (const name of allNames) {
+      const provider = this.createProvider(name);
+      if (provider?.isConfigured() && provider.getCapabilities().supportsEdit) {
+        configured.push(name);
+      }
+    }
+
+    return configured;
+  }
+
+  /**
    * Get default provider based on env or fallback chain
    */
   static getDefaultProvider(): ImageProvider {
