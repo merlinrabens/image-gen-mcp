@@ -150,8 +150,13 @@ export class Config {
    * Get provider with fallback support
    */
   static getProviderWithFallback(requestedName?: string, prompt?: string): ImageProvider {
+    // Check if we should use auto-selection (explicit 'auto' or DEFAULT_PROVIDER=auto)
+    const shouldUseAutoSelection =
+      requestedName === 'auto' ||
+      (!requestedName && process.env.DEFAULT_PROVIDER === 'auto');
+
     // Handle 'auto' provider selection
-    if (requestedName === 'auto' && prompt) {
+    if (shouldUseAutoSelection && prompt) {
       const configured = this.getConfiguredProviders();
       const selectedName = selectProvider(prompt, configured);
       const provider = selectedName ? this.getProvider(selectedName) : null;
