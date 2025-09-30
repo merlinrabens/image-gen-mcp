@@ -1,6 +1,7 @@
 import { ImageProvider } from './base.js';
 import { GenerateInput, EditInput, ProviderResult } from '../types.js';
 import { logger } from '../util/logger.js';
+import { deflateSync } from 'zlib';
 
 /**
  * Mock provider for testing without API keys
@@ -75,7 +76,7 @@ export class MockProvider extends ImageProvider {
   }
 
   /**
-   * Create a simple PNG with gradient based on prompt hash
+   * Create a valid PNG with gradient based on prompt hash
    */
   private createGradientPNG(width: number, height: number, prompt: string, inverted = false): Buffer {
     // Simple hash function for color generation
@@ -94,23 +95,19 @@ export class MockProvider extends ImageProvider {
     const g2 = inverted ? 255 - g1 : (g1 + 128) % 256;
     const b2 = inverted ? 255 - b1 : (b1 + 128) % 256;
 
-    // Create minimal PNG header and data
+    // Create PNG signature
     const pngSignature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 
     // IHDR chunk
-    const ihdr = Buffer.alloc(25);
-    ihdr.writeUInt32BE(13, 0); // Length
-    ihdr.write('IHDR', 4);
-    ihdr.writeUInt32BE(width, 8);
-    ihdr.writeUInt32BE(height, 12);
-    ihdr[16] = 8; // Bit depth
-    ihdr[17] = 2; // Color type (RGB)
-    ihdr[18] = 0; // Compression
-    ihdr[19] = 0; // Filter
-    ihdr[20] = 0; // Interlace
-
-    // Simple CRC for IHDR (simplified, not accurate but works for mock)
-    ihdr.writeUInt32BE(0x12345678, 21);
+    const ihdrData = Buffer.alloc(13);
+    ihdrData.writeUInt32BE(width, 0);
+    ihdrData.writeUInt32BE(height, 4);
+    ihdrData[8] = 8; // Bit depth
+    ihdrData[9] = 2; // Color type (RGB)
+    ihdrData[10] = 0; // Compression
+    ihdrData[11] = 0; // Filter
+    ihdrData[12] = 0; // Interlace
+    const ihdr = this.createChunk('IHDR', ihdrData);
 
     // Create pixel data with gradient
     const pixels: number[] = [];
@@ -124,18 +121,62 @@ export class MockProvider extends ImageProvider {
       }
     }
 
+    // Compress pixel data with zlib
     const pixelBuffer = Buffer.from(pixels);
+    const compressedPixels = deflateSync(pixelBuffer);
 
-    // IDAT chunk (simplified)
-    const idat = Buffer.alloc(pixelBuffer.length + 12);
-    idat.writeUInt32BE(pixelBuffer.length, 0);
-    idat.write('IDAT', 4);
-    pixelBuffer.copy(idat, 8);
-    idat.writeUInt32BE(0x87654321, pixelBuffer.length + 8); // CRC
+    // IDAT chunk
+    const idat = this.createChunk('IDAT', compressedPixels);
 
     // IEND chunk
     const iend = Buffer.from([0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130]);
 
     return Buffer.concat([pngSignature, ihdr, idat, iend]);
+  }
+
+  /**
+   * Create a PNG chunk with proper CRC
+   */
+  private createChunk(type: string, data: Buffer): Buffer {
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(data.length, 0);
+
+    const typeBuffer = Buffer.from(type, 'ascii');
+    const crcBuffer = Buffer.concat([typeBuffer, data]);
+    const crcValue = this.crc32(crcBuffer);
+
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(crcValue >>> 0, 0);
+
+    return Buffer.concat([length, typeBuffer, data, crc]);
+  }
+
+  /**
+   * Calculate CRC32 checksum (PNG standard)
+   */
+  private crc32(buffer: Buffer): number {
+    const table = this.makeCRCTable();
+    let crc = 0xFFFFFFFF;
+
+    for (let i = 0; i < buffer.length; i++) {
+      crc = table[(crc ^ buffer[i]) & 0xFF] ^ (crc >>> 8);
+    }
+
+    return (crc ^ 0xFFFFFFFF) >>> 0;
+  }
+
+  /**
+   * Generate CRC32 lookup table
+   */
+  private makeCRCTable(): number[] {
+    const table: number[] = [];
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) {
+        c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      }
+      table[n] = c >>> 0;
+    }
+    return table;
   }
 }

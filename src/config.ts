@@ -157,7 +157,8 @@ export class Config {
 
     // Handle 'auto' provider selection
     if (shouldUseAutoSelection && prompt) {
-      const configured = this.getConfiguredProviders();
+      // Exclude MOCK from auto-selection - it's only for explicit use or last resort
+      const configured = this.getConfiguredProviders().filter(name => name !== 'MOCK');
       const selectedName = selectProvider(prompt, configured);
       const provider = selectedName ? this.getProvider(selectedName) : null;
       if (provider?.isConfigured()) {
