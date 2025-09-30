@@ -263,7 +263,8 @@ export function selectProvider(
   }
 
   // Default to most versatile available provider (prioritize fallback chain order)
-  const preferredOrder = ['OPENAI', 'STABILITY', 'BFL', 'LEONARDO', 'GEMINI', 'IDEOGRAM', 'FAL', 'REPLICATE'];
+  // GEMINI preferred over OPENAI for better aspect ratio preservation and faster edits
+  const preferredOrder = ['GEMINI', 'OPENAI', 'STABILITY', 'BFL', 'LEONARDO', 'IDEOGRAM', 'FAL', 'REPLICATE'];
   for (const provider of preferredOrder) {
     if (availableProviders.includes(provider)) {
       logger.info(`Using default provider: ${provider}`);
@@ -302,8 +303,8 @@ export function getProviderRecommendations(prompt: string): {
 
   // Generic recommendations (aligned with fallback chain)
   return {
-    primary: ['OPENAI', 'STABILITY', 'BFL'],
-    secondary: ['LEONARDO', 'GEMINI', 'IDEOGRAM', 'FAL'],
+    primary: ['GEMINI', 'OPENAI', 'STABILITY'],
+    secondary: ['BFL', 'LEONARDO', 'IDEOGRAM', 'FAL'],
     reason: 'No specific use case detected - using versatile general-purpose providers'
   };
 }
