@@ -331,7 +331,28 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'image.edit': {
         const input = EditInputSchema.parse(args);
-        const provider = Config.getProviderWithFallback(input.provider, input.prompt);
+
+        // For auto-selection, only consider providers that support editing
+        let provider;
+        if (input.provider === 'auto' || !input.provider) {
+          const editCapableProviders = Config.getConfiguredEditProviders();
+          if (editCapableProviders.length === 0) {
+            throw new Error(
+              'No providers configured that support image editing. ' +
+              'Please configure OPENAI, STABILITY, BFL, or GEMINI.'
+            );
+          }
+          // Use selectProvider with only edit-capable providers
+          const { selectProvider } = await import('./services/providerSelector.js');
+          const selectedName = selectProvider(input.prompt, editCapableProviders);
+          provider = selectedName ? Config.getProvider(selectedName) : Config.getProviderWithFallback(undefined, input.prompt);
+        } else {
+          provider = Config.getProviderWithFallback(input.provider, input.prompt);
+        }
+
+        if (!provider) {
+          throw new Error('No provider available for image editing');
+        }
 
         logger.info(`Editing image with ${provider.name}`, {
           prompt: input.prompt.slice(0, 50)
@@ -340,7 +361,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (!provider.getCapabilities().supportsEdit) {
           throw new Error(
             `Provider ${provider.name} does not support image editing. ` +
-            `Try OpenAI or Stability providers instead.`
+            `Please use a provider that supports editing: OPENAI, STABILITY, BFL, or GEMINI.`
           );
         }
 
