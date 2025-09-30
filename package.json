@@ -12,6 +12,7 @@
     "test": "vitest",
     "test:watch": "vitest watch",
     "test:coverage": "vitest run --coverage",
+    "validate-providers": "tsx scripts/validate-providers.ts",
     "lint": "tsc --noEmit"
   },
   "keywords": [
