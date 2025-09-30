@@ -1,6 +1,6 @@
 {
   "name": "image-gen-mcp",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "MCP server for image generation with multiple provider support",
   "main": "dist/index.js",
   "type": "module",
