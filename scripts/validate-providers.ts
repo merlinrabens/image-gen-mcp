@@ -8,7 +8,7 @@
  * Usage: npm run validate-providers
  */
 
-import { getConfiguredProviders } from '../src/config.js';
+import { Config } from '../src/config.js';
 import { logger } from '../src/util/logger.js';
 
 // Simple test prompt
@@ -26,10 +26,18 @@ async function validateProvider(providerName: string): Promise<ValidationResult>
   const startTime = Date.now();
 
   try {
-    const providers = getConfiguredProviders();
-    const provider = providers.find(p => p.name === providerName);
+    const provider = Config.getProvider(providerName);
 
     if (!provider) {
+      return {
+        provider: providerName,
+        configured: false,
+        success: false,
+        error: 'Provider not available'
+      };
+    }
+
+    if (!provider.isConfigured()) {
       return {
         provider: providerName,
         configured: false,
