@@ -44,83 +44,46 @@ A production-ready Model Context Protocol (MCP) server for multi-provider image 
 
 ## Quick Start
 
-### 1. Install Dependencies
+### Installation
+
+The easiest way to use this MCP server is via NPM:
 
 ```bash
-npm install
-# or
-pnpm install
+npx @merlinrabens/image-gen-mcp
 ```
 
-### 2. Configure Environment
-
-Copy `.env.example` to `.env` and add your API keys:
+Or install globally:
 
 ```bash
-cp .env.example .env
+npm install -g @merlinrabens/image-gen-mcp
 ```
 
-Edit `.env` with your keys:
-```env
-# Core Providers
-OPENAI_API_KEY=sk-...
-STABILITY_API_KEY=sk-...
-REPLICATE_API_TOKEN=r8_...
-GEMINI_API_KEY=AIza...
+### Configuration
 
-# Specialized Providers
-LEONARDO_API_KEY=...
-IDEOGRAM_API_KEY=...
-BFL_API_KEY=...          # Black Forest Labs (Flux)
-FAL_API_KEY=...
-CLIPDROP_API_KEY=...
-
-# Configuration
-DEFAULT_PROVIDER=auto    # or specific provider name
-```
-
-### 3. Run Development Server
-
-```bash
-npm run dev
-```
-
-### 4. Add to Claude Desktop
-
-Edit your Claude Desktop config:
+Edit your Claude Desktop config to add the MCP server:
 
 **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 
-#### Option 1: Using .env file (simple)
+#### Recommended Setup (NPM Package)
 
 ```json
 {
   "mcpServers": {
     "image-gen-mcp": {
-      "command": "node",
-      "args": ["dist/index.js"],
-      "cwd": "/absolute/path/to/image-gen-mcp"
-    }
-  }
-}
-```
-
-#### Option 2: Injecting API keys directly (recommended)
-
-```json
-{
-  "mcpServers": {
-    "image-gen-mcp": {
-      "command": "node",
-      "args": ["dist/index.js"],
-      "cwd": "/absolute/path/to/image-gen-mcp",
+      "command": "npx",
+      "args": ["-y", "@merlinrabens/image-gen-mcp"],
       "env": {
         "OPENAI_API_KEY": "sk-...",
         "STABILITY_API_KEY": "sk-...",
         "REPLICATE_API_TOKEN": "r8_...",
         "GEMINI_API_KEY": "AIza...",
-        "DEFAULT_PROVIDER": "OPENAI",
+        "LEONARDO_API_KEY": "...",
+        "IDEOGRAM_API_KEY": "...",
+        "BFL_API_KEY": "...",
+        "FAL_API_KEY": "...",
+        "CLIPDROP_API_KEY": "...",
+        "DEFAULT_PROVIDER": "auto",
         "LOG_LEVEL": "info"
       }
     }
@@ -128,24 +91,84 @@ Edit your Claude Desktop config:
 }
 ```
 
-#### Option 3: Development with TypeScript
+**Environment Variables**:
+- Add at least one provider API key (or use `MOCK` provider for testing)
+- `DEFAULT_PROVIDER`: Set to `"auto"` for intelligent selection or specify a provider name
+- `LOG_LEVEL`: `"debug"` | `"info"` | `"warn"` | `"error"`
+- `DISABLE_FALLBACK`: Set to `"true"` to prevent fallback to other providers
+
+### API Keys
+
+Get your API keys from:
+- **OpenAI**: https://platform.openai.com/api-keys
+- **Stability AI**: https://platform.stability.ai/account/keys
+- **Replicate**: https://replicate.com/account/api-tokens
+- **Google Gemini**: https://aistudio.google.com/apikey
+- **Leonardo**: https://app.leonardo.ai/settings
+- **Ideogram**: https://ideogram.ai/api
+- **Black Forest Labs**: https://api.bfl.ml/
+- **Fal**: https://fal.ai/dashboard/keys
+- **Clipdrop**: https://clipdrop.co/apis
+
+### Testing
+
+After configuration, restart Claude Desktop and test:
+
+1. Ask Claude: "Check image-gen-mcp status with health.ping"
+2. Generate your first image: "Generate a serene mountain landscape"
+
+## Development Setup
+
+For contributors or local development:
+
+### 1. Clone Repository
+
+```bash
+git clone https://github.com/merlinrabens/image-gen-mcp.git
+cd image-gen-mcp
+```
+
+### 2. Install Dependencies
+
+```bash
+npm install
+```
+
+### 3. Configure Environment
+
+Copy `.env.example` to `.env` and add your API keys:
+
+```bash
+cp .env.example .env
+```
+
+### 4. Build & Run
+
+```bash
+npm run build
+npm start
+```
+
+### 5. Local Development Config
+
+For development with hot reload:
+
 ```json
 {
   "mcpServers": {
     "image-gen-mcp": {
-      "command": "npm",
-      "args": ["run", "dev"],
-      "cwd": "/absolute/path/to/image-gen-mcp",
+      "command": "npx",
+      "args": ["tsx", "/absolute/path/to/image-gen-mcp/src/index.ts"],
       "env": {
         "OPENAI_API_KEY": "sk-...",
-        "GEMINI_API_KEY": "AIza..."
+        "DEFAULT_PROVIDER": "auto"
       }
     }
   }
 }
 ```
 
-**Security Note**: When using the `env` field, your API keys are stored in your Claude Desktop config. This is convenient but ensure the config file has appropriate permissions.
+**Security Note**: API keys in the config file are stored in plain text. Ensure proper file permissions.
 
 ## Available Tools
 
@@ -502,9 +525,11 @@ MIT
 
 ## Next Steps
 
-1. Copy `.env.example` to `.env`
-2. Add at least one API key (or use MOCK provider)
-3. Run `npm install && npm run dev`
-4. Add to Claude Desktop config
+1. Get API keys from your preferred providers (see API Keys section above)
+2. Add the MCP server to your Claude Desktop config (see Configuration section)
+3. Add your API keys to the `env` field in the config
+4. Restart Claude Desktop
 5. Test with `health.ping` in Claude
-6. Generate your first image!
+6. Generate your first image: "Generate a serene mountain landscape"
+
+For local development or contributions, see the Development Setup section.
