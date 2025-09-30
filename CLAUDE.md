@@ -305,6 +305,27 @@ const imageData = await this.getImageBuffer(input.baseImage);
 // Returns: { buffer: Buffer, mimeType: string }
 ```
 
+### Dimension Detection and Preservation
+```typescript
+// Detect image dimensions from any input format
+const dimensions = await this.detectImageDimensions(input.baseImage);
+// Returns: { width: number, height: number }
+
+// In edit operations, automatically preserve aspect ratio:
+let width = input.width;
+let height = input.height;
+if (!width || !height) {
+  const dimensions = await this.detectImageDimensions(input.baseImage);
+  width = width || dimensions.width;
+  height = height || dimensions.height;
+}
+
+// EditInput schema now supports optional width/height parameters
+// Defaults to input image dimensions if not specified
+// BFL and STABILITY providers use dimensions for aspect ratio control
+// GEMINI currently only supports 1:1 (square) aspect ratio
+```
+
 ### Image Download Pattern
 ```typescript
 // Download from URL and convert to data URL

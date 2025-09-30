@@ -16,6 +16,8 @@ export const EditInputSchema = z.object({
   provider: z.string().optional().describe('Provider name (OPENAI, STABILITY, REPLICATE, GEMINI, IDEOGRAM, BFL, LEONARDO, FAL, CLIPDROP, MOCK, or "auto" for intelligent selection)'),
   baseImage: z.string().describe('Image to edit - supports data URLs (data:image/png;base64,...), file paths (/path/to/image.png), or file URLs (file:///path/to/image.png)'),
   maskImage: z.string().optional().describe('Mask image (optional) - supports data URLs, file paths, or file URLs'),
+  width: z.number().int().min(64).max(4096).optional().describe('Output image width in pixels (defaults to input image dimensions)'),
+  height: z.number().int().min(64).max(4096).optional().describe('Output image height in pixels (defaults to input image dimensions)'),
   model: z.string().optional().describe('Model name for the provider')
 });
 

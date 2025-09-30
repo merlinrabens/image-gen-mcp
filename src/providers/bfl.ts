@@ -180,6 +180,15 @@ export class BFLProvider extends ImageProvider {
         // Extract base image data with size validation (supports both data URLs and file paths)
         const baseImageData = await this.getImageBuffer(input.baseImage);
 
+        // Detect dimensions if not provided
+        let width = input.width;
+        let height = input.height;
+        if (!width || !height) {
+          const dimensions = await this.detectImageDimensions(input.baseImage);
+          width = width || dimensions.width;
+          height = height || dimensions.height;
+        }
+
         let endpoint: string;
         let requestBody: Record<string, any>;
 
@@ -189,6 +198,8 @@ export class BFLProvider extends ImageProvider {
           requestBody = {
             prompt: input.prompt,
             image: baseImageData.buffer.toString('base64'),
+            width,
+            height,
             steps: 28,
             guidance: 3.5, // Kontext uses lower guidance
             safety_tolerance: 2,
@@ -200,6 +211,8 @@ export class BFLProvider extends ImageProvider {
           requestBody = {
             prompt: input.prompt,
             image: baseImageData.buffer.toString('base64'),
+            width,
+            height,
             steps: 28,
             guidance: 30, // Higher guidance for inpainting
             output_format: 'png'
