@@ -298,6 +298,33 @@ Request: {
 
 ## Provider Examples
 
+### Image Editing with File Paths
+
+Edit generated images directly using file paths:
+```javascript
+// After generating an image saved to disk
+{
+  "prompt": "Add a sunset background",
+  "baseImage": "/path/to/generated-image.png",  // Direct file path
+  "provider": "OPENAI"
+}
+
+// Or using a data URL (still supported)
+{
+  "prompt": "Make it more colorful",
+  "baseImage": "data:image/png;base64,iVBORw0...",
+  "provider": "STABILITY"
+}
+
+// With a mask for selective editing
+{
+  "prompt": "Replace the background with mountains",
+  "baseImage": "/path/to/image.png",
+  "maskImage": "/path/to/mask.png",  // Both support file paths
+  "provider": "BFL"
+}
+```
+
 ### Automatic Provider Selection
 
 Let the system choose the best provider for your use case:

@@ -222,6 +222,21 @@ while (true) {
 }
 ```
 
+### Image Input Handling
+```typescript
+// New: getImageBuffer() supports multiple input formats
+const imageData = await this.getImageBuffer(input.baseImage);
+
+// Supports:
+// 1. Data URLs: 'data:image/png;base64,...'
+// 2. File paths: '/path/to/image.png'
+// 3. File URLs: 'file:///path/to/image.png'
+
+// Automatic MIME type detection from file extension
+// Built-in size validation (10MB max)
+// Returns: { buffer: Buffer, mimeType: string }
+```
+
 ### Image Download Pattern
 ```typescript
 // Download from URL and convert to data URL

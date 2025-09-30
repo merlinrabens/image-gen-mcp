@@ -14,8 +14,8 @@ export const GenerateInputSchema = z.object({
 export const EditInputSchema = z.object({
   prompt: z.string().min(1).describe('Text prompt for image editing'),
   provider: z.string().optional().describe('Provider name (OPENAI, STABILITY, REPLICATE, GEMINI, IDEOGRAM, BFL, LEONARDO, FAL, CLIPDROP, MOCK, or "auto" for intelligent selection)'),
-  baseImage: z.string().describe('Base64 data URL or URL of the image to edit'),
-  maskImage: z.string().optional().describe('Base64 data URL or URL of the mask image'),
+  baseImage: z.string().describe('Image to edit - supports data URLs (data:image/png;base64,...), file paths (/path/to/image.png), or file URLs (file:///path/to/image.png)'),
+  maskImage: z.string().optional().describe('Mask image (optional) - supports data URLs, file paths, or file URLs'),
   model: z.string().optional().describe('Model name for the provider')
 });
 
