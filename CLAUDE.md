@@ -3,6 +3,71 @@
 ## Project Overview
 MCP (Model Context Protocol) server providing unified image generation across 9 AI providers with intelligent selection, fallback chains, and enterprise-grade security.
 
+## Provider Strengths & Positioning
+
+### OPENAI (DALL-E 3)
+- **Best for**: Versatile general-purpose generation, creative interpretation
+- **Strengths**: Exceptional prompt understanding, composition, safety filtering
+- **Quality**: High, consistent across use cases
+- **Speed**: Moderate (10-30s)
+- **Position**: Primary fallback - most versatile and reliable
+
+### STABILITY (Stable Diffusion XL)
+- **Best for**: Photorealism, professional photography style, controlled generation
+- **Strengths**: Fine parameter control (strength, cfg_scale), mature API, img-to-img
+- **Quality**: High, especially for realistic images
+- **Speed**: Fast-moderate (5-15s)
+- **Position**: Secondary fallback - reliable workhorse
+
+### BFL (Black Forest Labs / Flux)
+- **Best for**: Ultra-high resolution, professional photography, product shots
+- **Strengths**: State-of-the-art photorealism, fine detail, texture quality
+- **Quality**: Exceptional for photorealistic work
+- **Speed**: Moderate-slow (20-40s, polling-based)
+- **Position**: High-quality photorealism specialist
+
+### LEONARDO
+- **Best for**: Artistic renders, fantasy art, cinematic compositions, game assets, professional illustrations
+- **Strengths**: Excellent artistic quality across multiple styles, character consistency, creative interpretation
+- **Quality**: Exceptional for artistic and cinematic work
+- **Speed**: Moderate (15-30s, polling-based)
+- **Position**: Underutilized gem - not just for character consistency!
+
+### GEMINI
+- **Best for**: Multi-image composition, complex context understanding
+- **Strengths**: Unique multimodal capability (multiple image inputs), Google infrastructure reliability
+- **Quality**: Good general quality
+- **Speed**: Fast-moderate (5-20s)
+- **Position**: Unique for multi-image workflows
+
+### IDEOGRAM
+- **Best for**: Text rendering, logos, posters, typography, marketing materials
+- **Strengths**: Industry-leading text-in-image quality, clean outputs
+- **Quality**: Excellent for text-heavy work
+- **Speed**: Fast (5-10s)
+- **Position**: Text rendering specialist
+
+### FAL
+- **Best for**: Rapid iterations, drafts, real-time generation
+- **Strengths**: Blazing fast (50-300ms), good quality for speed
+- **Quality**: Good for rapid work
+- **Speed**: Ultra-fast (sub-second to few seconds)
+- **Position**: Speed specialist
+
+### REPLICATE
+- **Best for**: Specific open models, experimentation, cost-sensitive use cases
+- **Strengths**: Access to many open-source models, community-driven
+- **Quality**: Variable (depends on model selection)
+- **Speed**: Variable (depends on model)
+- **Position**: Fallback for open model access
+
+### CLIPDROP
+- **Best for**: Post-processing only (background removal, enhancement, upscaling)
+- **Strengths**: Specialized editing operations
+- **Quality**: Excellent for post-processing
+- **Speed**: Fast for specialized operations
+- **Position**: NOT in generation fallback - editing operations only
+
 ## Architecture
 
 ### Core Design Principles
@@ -20,14 +85,14 @@ src/
 ├── types.ts                # TypeScript types & Zod schemas
 ├── providers/
 │   ├── base.ts            # Abstract base class with security/performance
-│   ├── mock.ts            # Testing provider (no API needed)
-│   ├── openai.ts          # DALL-E integration
-│   ├── stability.ts       # Stable Diffusion
-│   ├── leonardo.ts        # Character consistency
+│   ├── mock.ts            # Testing provider (dev/test only)
+│   ├── openai.ts          # DALL-E - versatile general-purpose
+│   ├── stability.ts       # Stable Diffusion - photorealism
+│   ├── leonardo.ts        # Artistic, cinematic, fantasy specialist
 │   ├── ideogram.ts        # Text rendering specialist
-│   ├── bfl.ts            # Black Forest Labs (Flux)
+│   ├── bfl.ts            # Black Forest Labs - ultra-high quality
 │   ├── fal.ts            # Ultra-fast generation
-│   ├── clipdrop.ts       # Post-processing
+│   ├── clipdrop.ts       # Post-processing only
 │   ├── replicate.ts      # Open model access
 │   └── gemini.ts         # Google multimodal
 ├── services/
@@ -173,7 +238,10 @@ await new Promise(r => setTimeout(r, delay + Math.random() * 500));
 ### Provider Selection Optimization
 - Pre-built keyword index for O(n) complexity
 - Cached provider instances (lazy initialization)
-- Fallback chain: OPENAI → STABILITY → REPLICATE → GEMINI → MOCK
+- Fallback chain: OPENAI → STABILITY → BFL → LEONARDO → GEMINI → IDEOGRAM → FAL → REPLICATE
+  - Prioritizes versatility (OPENAI), reliability (STABILITY), quality (BFL), artistic excellence (LEONARDO)
+  - CLIPDROP excluded from generation fallback (post-processing only)
+  - MOCK provider excluded from production (dev/test only or ALLOW_MOCK_PROVIDER=true)
 
 ## Testing Strategy
 
@@ -273,7 +341,11 @@ headers: {
 ### Configuration Options
 - `DEFAULT_PROVIDER`: Provider name or "auto" (default: "auto")
 - `DISABLE_FALLBACK`: "true" to disable fallback chain
+- `ALLOW_MOCK_PROVIDER`: "true" to allow MOCK in production (not recommended)
+- `NODE_ENV`: Set to "development" or "test" to auto-enable MOCK provider
 - `LOG_LEVEL`: "debug" | "info" | "warn" | "error"
+
+**Important**: If no real providers are configured and MOCK is not allowed, the server will throw a clear error instead of silently falling back to MOCK. This prevents accidental use of mock images in production.
 
 ## MCP Protocol Specifics
 

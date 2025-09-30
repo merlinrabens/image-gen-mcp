@@ -132,8 +132,16 @@ export class Config {
       );
     }
 
-    // Fallback chain - prioritize new providers
-    const fallbackChain: ProviderName[] = ['IDEOGRAM', 'BFL', 'LEONARDO', 'FAL', 'OPENAI', 'STABILITY', 'REPLICATE', 'GEMINI', 'MOCK'];
+    // Fallback chain - prioritize versatility, reliability, and quality
+    // OPENAI: Best prompt understanding, most versatile
+    // STABILITY: Mature, reliable, broad use cases
+    // BFL: High-quality photorealism
+    // LEONARDO: Excellent artistic quality, cinematic, fantasy
+    // GEMINI: Google infrastructure, unique multimodal capabilities
+    // IDEOGRAM: Specialized text rendering
+    // FAL: Ultra-fast generation
+    // REPLICATE: Variable quality open models
+    const fallbackChain: ProviderName[] = ['OPENAI', 'STABILITY', 'BFL', 'LEONARDO', 'GEMINI', 'IDEOGRAM', 'FAL', 'REPLICATE'];
 
     for (const name of fallbackChain) {
       const provider = this.createProvider(name);
@@ -142,7 +150,18 @@ export class Config {
       }
     }
 
-    // Mock is always available
+    // No real providers configured - check if we should allow MOCK
+    const allowMock = process.env.ALLOW_MOCK_PROVIDER === 'true' || process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
+
+    if (!allowMock) {
+      throw new ProviderError(
+        'No image generation providers configured. Please set up at least one provider API key (OPENAI_API_KEY, STABILITY_API_KEY, etc.). See documentation for setup instructions.',
+        'NONE',
+        false
+      );
+    }
+
+    // MOCK is only available in development/test or when explicitly allowed
     return this.createProvider('MOCK')!;
   }
 
@@ -157,7 +176,8 @@ export class Config {
 
     // Handle 'auto' provider selection
     if (shouldUseAutoSelection && prompt) {
-      const configured = this.getConfiguredProviders();
+      // Exclude MOCK from auto-selection - it's only for explicit use or last resort
+      const configured = this.getConfiguredProviders().filter(name => name !== 'MOCK');
       const selectedName = selectProvider(prompt, configured);
       const provider = selectedName ? this.getProvider(selectedName) : null;
       if (provider?.isConfigured()) {
