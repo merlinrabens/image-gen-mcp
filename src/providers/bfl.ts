@@ -180,7 +180,7 @@ export class BFLProvider extends ImageProvider {
         // Extract base image data with size validation (supports both data URLs and file paths)
         const baseImageData = await this.getImageBuffer(input.baseImage);
 
-        // Detect dimensions if not provided
+        // Detect dimensions if not provided (needed for aspect ratio calculation)
         let width = input.width;
         let height = input.height;
         if (!width || !height) {
@@ -193,20 +193,24 @@ export class BFLProvider extends ImageProvider {
         let requestBody: Record<string, any>;
 
         if (isKontext) {
-          // Flux Kontext: General image editing without mask
+          // Flux Kontext: Uses aspect_ratio instead of width/height
+          // All outputs are ~1MP total (e.g., 1024x1024, 1365x768 for 16:9, etc.)
           endpoint = 'https://api.bfl.ml/v1/flux-kontext-pro';
+
+          // Calculate aspect ratio from dimensions
+          const aspectRatio = this.calculateAspectRatio(width, height);
+
           requestBody = {
             prompt: input.prompt,
-            image: baseImageData.buffer.toString('base64'),
-            width,
-            height,
+            input_image: baseImageData.buffer.toString('base64'),
+            aspect_ratio: aspectRatio,
             steps: 28,
             guidance: 3.5, // Kontext uses lower guidance
             safety_tolerance: 2,
             output_format: 'png'
           };
         } else {
-          // Flux Fill: Inpainting with mask
+          // Flux Fill: Inpainting with mask - uses width/height
           endpoint = 'https://api.bfl.ml/v1/flux-pro-1.0-fill';
           requestBody = {
             prompt: input.prompt,
@@ -380,5 +384,42 @@ export class BFLProvider extends ImageProvider {
       model,
       warnings: model.includes('ultra') ? ['Ultra-high resolution image generated'] : undefined
     };
+  }
+
+  /**
+   * Calculate aspect ratio string from width and height
+   * Kontext supports ratios from 3:7 to 7:3
+   */
+  private calculateAspectRatio(width: number, height: number): string {
+    const ratio = width / height;
+
+    // Common aspect ratios - return standard ones where close
+    if (Math.abs(ratio - 1) < 0.05) return '1:1';
+    if (Math.abs(ratio - 16/9) < 0.05) return '16:9';
+    if (Math.abs(ratio - 9/16) < 0.05) return '9:16';
+    if (Math.abs(ratio - 4/3) < 0.05) return '4:3';
+    if (Math.abs(ratio - 3/4) < 0.05) return '3:4';
+    if (Math.abs(ratio - 21/9) < 0.05) return '21:9';
+    if (Math.abs(ratio - 9/21) < 0.05) return '9:21';
+    if (Math.abs(ratio - 3/2) < 0.05) return '3:2';
+    if (Math.abs(ratio - 2/3) < 0.05) return '2:3';
+
+    // For custom ratios, calculate GCD and simplify
+    const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b);
+    const divisor = gcd(width, height);
+    const simplifiedW = Math.round(width / divisor);
+    const simplifiedH = Math.round(height / divisor);
+
+    // Clamp to Kontext's supported range (3:7 to 7:3)
+    const minRatio = 3/7; // ~0.43
+    const maxRatio = 7/3; // ~2.33
+
+    if (ratio < minRatio) {
+      return '3:7'; // Most portrait
+    } else if (ratio > maxRatio) {
+      return '7:3'; // Most landscape
+    }
+
+    return `${simplifiedW}:${simplifiedH}`;
   }
 }
