@@ -31,7 +31,7 @@ export class OpenAIProvider extends ImageProvider {
       supportsEdit: true,
       maxWidth: 1792,
       maxHeight: 1792,
-      supportedModels: ['dall-e-3', 'dall-e-2']
+      supportedModels: ['dall-e-3', 'gpt-image-1']
     };
   }
 
@@ -42,7 +42,7 @@ export class OpenAIProvider extends ImageProvider {
     }
 
     const model = input.model || 'dall-e-3';
-    const size = this.mapSize(input.width, input.height, model);
+    const size = this.mapSize(input.width, input.height);
 
     logger.info(`OpenAI generating image`, { model, size, prompt: input.prompt.slice(0, 50) });
 
@@ -123,6 +123,9 @@ export class OpenAIProvider extends ImageProvider {
 
       const maskBuffer = input.maskImage ? (await this.getImageBuffer(input.maskImage)).buffer : undefined;
 
+      // Select model - gpt-image-1 is newer and better, dall-e-2 for fallback
+      const model = input.model || 'gpt-image-1';
+
       // Create multipart form data manually
       const boundary = `----FormBoundary${Date.now()}`;
       const parts: Buffer[] = [];
@@ -148,6 +151,12 @@ export class OpenAIProvider extends ImageProvider {
       }
 
       // Add other fields
+      parts.push(Buffer.from(
+        `--${boundary}\r\n` +
+        `Content-Disposition: form-data; name="model"\r\n\r\n` +
+        `${model}\r\n`
+      ));
+
       parts.push(Buffer.from(
         `--${boundary}\r\n` +
         `Content-Disposition: form-data; name="prompt"\r\n\r\n` +
@@ -196,7 +205,7 @@ export class OpenAIProvider extends ImageProvider {
       return {
         images,
         provider: this.name,
-        model: 'dall-e-2' // Edits only work with DALL-E 2
+        model
       };
     } catch (error) {
       if (error instanceof ProviderError) throw error;
@@ -209,16 +218,10 @@ export class OpenAIProvider extends ImageProvider {
 
   /**
    * Map width/height to OpenAI size strings
+   * DALL-E 3 supports: 1024x1024, 1792x1024, 1024x1792
    */
-  private mapSize(width?: number, height?: number, model: string = 'dall-e-3'): string {
-    if (model === 'dall-e-2') {
-      // DALL-E 2 sizes
-      if ((width === 256 || !width) && (height === 256 || !height)) return '256x256';
-      if ((width === 512 || !width) && (height === 512 || !height)) return '512x512';
-      return '1024x1024'; // Default
-    }
-
-    // DALL-E 3 sizes
+  private mapSize(width?: number, height?: number): string {
+    // DALL-E 3 exact sizes
     if (width && height) {
       if (width === 1024 && height === 1024) return '1024x1024';
       if (width === 1792 && height === 1024) return '1792x1024';
