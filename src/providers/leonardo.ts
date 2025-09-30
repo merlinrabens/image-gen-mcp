@@ -21,16 +21,18 @@ import { logger } from '../util/logger.js';
 export class LeonardoProvider extends ImageProvider {
   readonly name = 'LEONARDO';
 
-  private apiKey?: string;
   private baseUrl = 'https://cloud.leonardo.ai/api/rest/v1';
 
   constructor() {
     super();
-    this.apiKey = process.env.LEONARDO_API_KEY;
+  }
+
+  private getApiKey(): string | undefined {
+    return process.env.LEONARDO_API_KEY;
   }
 
   isConfigured(): boolean {
-    return !!this.apiKey;
+    return !!this.getApiKey();
   }
 
   getRequiredEnvVars(): string[] {
@@ -62,7 +64,8 @@ export class LeonardoProvider extends ImageProvider {
 
   async generate(input: GenerateInput): Promise<ProviderResult> {
     // Validate API key
-    if (!this.validateApiKey(this.apiKey)) {
+    const apiKey = this.getApiKey();
+    if (!this.validateApiKey(apiKey)) {
       throw new ProviderError(
         'LEONARDO_API_KEY not configured or invalid',
         this.name,
@@ -119,7 +122,7 @@ export class LeonardoProvider extends ImageProvider {
         const createResponse = await fetch(`${this.baseUrl}/generations`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(requestBody)
@@ -156,7 +159,7 @@ export class LeonardoProvider extends ImageProvider {
           `${this.baseUrl}/generations/${generationId}`,
           {
             headers: {
-              'Authorization': `Bearer ${this.apiKey}`
+              'Authorization': `Bearer ${apiKey}`
             }
           }
         );

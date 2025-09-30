@@ -8,15 +8,17 @@ import { logger } from '../util/logger.js';
  */
 export class ReplicateProvider extends ImageProvider {
   readonly name = 'REPLICATE';
-  private apiToken: string | undefined;
 
   constructor() {
     super();
-    this.apiToken = process.env.REPLICATE_API_TOKEN;
+  }
+
+  private getApiToken(): string | undefined {
+    return process.env.REPLICATE_API_TOKEN;
   }
 
   isConfigured(): boolean {
-    return !!this.apiToken;
+    return !!this.getApiToken();
   }
 
   getRequiredEnvVars(): string[] {
@@ -39,7 +41,8 @@ export class ReplicateProvider extends ImageProvider {
   }
 
   async generate(input: GenerateInput): Promise<ProviderResult> {
-    if (!this.apiToken) {
+    const apiToken = this.getApiToken();
+    if (!apiToken) {
       throw new ProviderError('Replicate API token not configured', this.name);
     }
 
@@ -60,10 +63,10 @@ export class ReplicateProvider extends ImageProvider {
         ...(input.seed !== undefined && { seed: input.seed }),
         ...(input.guidance !== undefined && { guidance_scale: input.guidance }),
         ...(input.steps !== undefined && { num_inference_steps: input.steps })
-      });
+      }, apiToken);
 
       // Poll for completion
-      const result = await this.pollPrediction(prediction.id);
+      const result = await this.pollPrediction(prediction.id, apiToken);
 
       if (result.status === 'failed') {
         throw new ProviderError(`Replicate model failed: ${result.error}`, this.name, false);
@@ -105,17 +108,17 @@ export class ReplicateProvider extends ImageProvider {
   /**
    * Create a new prediction
    */
-  private async createPrediction(model: string, input: any): Promise<any> {
+  private async createPrediction(model: string, input: any, apiToken: string): Promise<any> {
     const controller = this.createTimeout();
 
     const { statusCode, body } = await request('https://api.replicate.com/v1/predictions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${this.apiToken}`,
+        'Authorization': `Bearer ${apiToken}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        version: await this.getModelVersion(model),
+        version: await this.getModelVersion(model, apiToken),
         input
       }),
       signal: controller.signal
@@ -135,14 +138,14 @@ export class ReplicateProvider extends ImageProvider {
   /**
    * Poll prediction status until complete
    */
-  private async pollPrediction(id: string, maxAttempts = 60): Promise<any> {
+  private async pollPrediction(id: string, apiToken: string, maxAttempts = 60): Promise<any> {
     for (let i = 0; i < maxAttempts; i++) {
       const controller = this.createTimeout(10000);
 
       const { statusCode, body } = await request(`https://api.replicate.com/v1/predictions/${id}`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${this.apiToken}`
+          'Authorization': `Bearer ${apiToken}`
         },
         signal: controller.signal
       });
@@ -167,7 +170,7 @@ export class ReplicateProvider extends ImageProvider {
   /**
    * Get the latest version ID for a model
    */
-  private async getModelVersion(model: string): Promise<string> {
+  private async getModelVersion(model: string, apiToken: string): Promise<string> {
     // Hardcoded versions for common models to avoid extra API calls
     // Updated 2025-09-29 via fetch-replicate-versions.js
     const knownVersions: Record<string, string> = {
@@ -188,7 +191,7 @@ export class ReplicateProvider extends ImageProvider {
     const { statusCode, body } = await request(`https://api.replicate.com/v1/models/${owner}/${name}`, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${this.apiToken}`
+        'Authorization': `Bearer ${apiToken}`
       },
       signal: controller.signal
     });

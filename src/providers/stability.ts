@@ -8,15 +8,17 @@ import { logger } from '../util/logger.js';
  */
 export class StabilityProvider extends ImageProvider {
   readonly name = 'STABILITY';
-  private apiKey: string | undefined;
 
   constructor() {
     super();
-    this.apiKey = process.env.STABILITY_API_KEY;
+  }
+
+  private getApiKey(): string | undefined {
+    return process.env.STABILITY_API_KEY;
   }
 
   isConfigured(): boolean {
-    return !!this.apiKey;
+    return !!this.getApiKey();
   }
 
   getRequiredEnvVars(): string[] {
@@ -34,7 +36,8 @@ export class StabilityProvider extends ImageProvider {
   }
 
   async generate(input: GenerateInput): Promise<ProviderResult> {
-    if (!this.apiKey) {
+    const apiKey = this.getApiKey();
+    if (!apiKey) {
       throw new ProviderError('Stability API key not configured', this.name);
     }
 
@@ -87,7 +90,7 @@ export class StabilityProvider extends ImageProvider {
       const { statusCode, body: responseBody } = await request(`https://api.stability.ai/v2beta/stable-image/generate/core`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': `multipart/form-data; boundary=${boundary}`,
           'Accept': 'image/*'
         },
@@ -122,7 +125,8 @@ export class StabilityProvider extends ImageProvider {
   }
 
   async edit(input: EditInput): Promise<ProviderResult> {
-    if (!this.apiKey) {
+    const apiKey = this.getApiKey();
+    if (!apiKey) {
       throw new ProviderError('Stability API key not configured', this.name);
     }
 
@@ -182,7 +186,7 @@ export class StabilityProvider extends ImageProvider {
       const { statusCode, body: responseBody } = await request(`https://api.stability.ai/v2beta/stable-image/generate/sd3`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': `multipart/form-data; boundary=${boundary}`,
           'Accept': 'image/*'
         },

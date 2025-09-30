@@ -9,15 +9,17 @@ import { logger } from '../util/logger.js';
  */
 export class IdeogramProvider extends ImageProvider {
   readonly name = 'IDEOGRAM';
-  private apiKey: string | undefined;
 
   constructor() {
     super();
-    this.apiKey = process.env.IDEOGRAM_API_KEY;
+  }
+
+  private getApiKey(): string | undefined {
+    return process.env.IDEOGRAM_API_KEY;
   }
 
   isConfigured(): boolean {
-    return !!this.apiKey;
+    return !!this.getApiKey();
   }
 
   getRequiredEnvVars(): string[] {
@@ -45,7 +47,8 @@ export class IdeogramProvider extends ImageProvider {
 
   async generate(input: GenerateInput): Promise<ProviderResult> {
     // Validate API key
-    if (!this.validateApiKey(this.apiKey)) {
+    const apiKey = this.getApiKey();
+    if (!this.validateApiKey(apiKey)) {
       throw new ProviderError('Ideogram API key not configured or invalid', this.name, false);
     }
 
@@ -95,7 +98,7 @@ export class IdeogramProvider extends ImageProvider {
         {
           method: 'POST',
           headers: {
-            'Api-Key': this.apiKey,
+            'Api-Key': apiKey,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify(requestBody),
@@ -163,7 +166,8 @@ export class IdeogramProvider extends ImageProvider {
 
   async edit(input: EditInput): Promise<ProviderResult> {
     // Validate API key
-    if (!this.validateApiKey(this.apiKey)) {
+    const apiKey = this.getApiKey();
+    if (!this.validateApiKey(apiKey)) {
       throw new ProviderError('Ideogram API key not configured or invalid', this.name, false);
     }
 
@@ -267,7 +271,7 @@ export class IdeogramProvider extends ImageProvider {
         {
           method: 'POST',
           headers: {
-            'Api-Key': this.apiKey,
+            'Api-Key': apiKey,
             'Content-Type': `multipart/form-data; boundary=${boundary}`,
             'Content-Length': formData.length.toString()
           },

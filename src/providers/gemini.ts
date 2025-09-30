@@ -9,15 +9,17 @@ import { logger } from '../util/logger.js';
  */
 export class GeminiProvider extends ImageProvider {
   readonly name = 'GEMINI';
-  private apiKey: string | undefined;
 
   constructor() {
     super();
-    this.apiKey = process.env.GEMINI_API_KEY;
+  }
+
+  private getApiKey(): string | undefined {
+    return process.env.GEMINI_API_KEY;
   }
 
   isConfigured(): boolean {
-    return !!this.apiKey;
+    return !!this.getApiKey();
   }
 
   getRequiredEnvVars(): string[] {
@@ -38,7 +40,8 @@ export class GeminiProvider extends ImageProvider {
   }
 
   async generate(input: GenerateInput): Promise<ProviderResult> {
-    if (!this.apiKey) {
+    const apiKey = this.getApiKey();
+    if (!apiKey) {
       throw new ProviderError('Gemini API key not configured', this.name);
     }
 
@@ -69,7 +72,7 @@ export class GeminiProvider extends ImageProvider {
       logger.info(`Requesting Gemini image (1:1 output, aspect ratio control not available)`);
 
       const { statusCode, body } = await request(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: {
@@ -143,7 +146,8 @@ export class GeminiProvider extends ImageProvider {
   }
 
   async edit(input: EditInput): Promise<ProviderResult> {
-    if (!this.apiKey) {
+    const apiKey = this.getApiKey();
+    if (!apiKey) {
       throw new ProviderError('Gemini API key not configured', this.name);
     }
 
@@ -202,7 +206,7 @@ export class GeminiProvider extends ImageProvider {
       };
 
       const { statusCode, body } = await request(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: {

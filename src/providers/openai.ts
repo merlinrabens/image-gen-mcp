@@ -8,15 +8,17 @@ import { logger } from '../util/logger.js';
  */
 export class OpenAIProvider extends ImageProvider {
   readonly name = 'OPENAI';
-  private apiKey: string | undefined;
 
   constructor() {
     super();
-    this.apiKey = process.env.OPENAI_API_KEY;
+  }
+
+  private getApiKey(): string | undefined {
+    return process.env.OPENAI_API_KEY;
   }
 
   isConfigured(): boolean {
-    return !!this.apiKey;
+    return !!this.getApiKey();
   }
 
   getRequiredEnvVars(): string[] {
@@ -34,7 +36,8 @@ export class OpenAIProvider extends ImageProvider {
   }
 
   async generate(input: GenerateInput): Promise<ProviderResult> {
-    if (!this.apiKey) {
+    const apiKey = this.getApiKey();
+    if (!apiKey) {
       throw new ProviderError('OpenAI API key not configured', this.name);
     }
 
@@ -49,7 +52,7 @@ export class OpenAIProvider extends ImageProvider {
       const { statusCode, body } = await request('https://api.openai.com/v1/images/generations', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
@@ -90,7 +93,8 @@ export class OpenAIProvider extends ImageProvider {
   }
 
   async edit(input: EditInput): Promise<ProviderResult> {
-    if (!this.apiKey) {
+    const apiKey = this.getApiKey();
+    if (!apiKey) {
       throw new ProviderError('OpenAI API key not configured', this.name);
     }
 
@@ -169,7 +173,7 @@ export class OpenAIProvider extends ImageProvider {
       const { statusCode, body } = await request('https://api.openai.com/v1/images/edits', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': `multipart/form-data; boundary=${boundary}`
         },
         body: formData,

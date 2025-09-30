@@ -21,16 +21,18 @@ import { logger } from '../util/logger.js';
 export class ClipdropProvider extends ImageProvider {
   readonly name = 'CLIPDROP';
 
-  private apiKey?: string;
   private baseUrl = 'https://clipdrop-api.co';
 
   constructor() {
     super();
-    this.apiKey = process.env.CLIPDROP_API_KEY;
+  }
+
+  private getApiKey(): string | undefined {
+    return process.env.CLIPDROP_API_KEY;
   }
 
   isConfigured(): boolean {
-    return !!this.apiKey;
+    return !!this.getApiKey();
   }
 
   getRequiredEnvVars(): string[] {
@@ -62,7 +64,8 @@ export class ClipdropProvider extends ImageProvider {
 
   async generate(input: GenerateInput): Promise<ProviderResult> {
     // Validate API key
-    if (!this.validateApiKey(this.apiKey)) {
+    const apiKey = this.getApiKey();
+    if (!this.validateApiKey(apiKey)) {
       throw new ProviderError(
         'CLIPDROP_API_KEY not configured or invalid',
         this.name,
@@ -109,7 +112,7 @@ export class ClipdropProvider extends ImageProvider {
         const response = await fetch(`${this.baseUrl}${endpoint}`, {
           method: 'POST',
           headers: {
-            'x-api-key': this.apiKey!
+            'x-api-key': apiKey!
           },
           body: formData,
           signal: controller.signal
@@ -165,7 +168,8 @@ export class ClipdropProvider extends ImageProvider {
 
   async edit(input: EditInput): Promise<ProviderResult> {
     // Validate API key
-    if (!this.validateApiKey(this.apiKey)) {
+    const apiKey = this.getApiKey();
+    if (!this.validateApiKey(apiKey)) {
       throw new ProviderError(
         'CLIPDROP_API_KEY not configured or invalid',
         this.name,
@@ -233,7 +237,7 @@ export class ClipdropProvider extends ImageProvider {
         const response = await fetch(`${this.baseUrl}${endpoint}`, {
           method: 'POST',
           headers: {
-            'x-api-key': this.apiKey!
+            'x-api-key': apiKey!
           },
           body: formData,
           signal: controller.signal
