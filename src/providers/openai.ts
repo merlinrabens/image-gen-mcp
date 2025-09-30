@@ -101,7 +101,8 @@ export class OpenAIProvider extends ImageProvider {
     logger.info(`OpenAI editing image`, { prompt: input.prompt.slice(0, 50) });
 
     try {
-      const controller = this.createTimeout();
+      // gpt-image-1 edit can take up to 180 seconds according to community reports
+      const controller = this.createTimeout(180000); // 3 minutes
 
       // Convert base64 to blob for form data (supports both data URLs and file paths)
       let baseImageBuffer = (await this.getImageBuffer(input.baseImage)).buffer;
