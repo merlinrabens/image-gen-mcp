@@ -30,10 +30,28 @@ const useCaseMapping: Record<string, UseCase> = {
     confidence: 0.85
   },
   'artistic': {
-    keywords: ['art', 'painting', 'illustration', 'creative', 'abstract', 'surreal', 'fantasy', 'imaginative'],
-    preferredProviders: ['LEONARDO', 'REPLICATE'],
-    fallbackProviders: ['STABLE', 'FAL'],
-    confidence: 0.8
+    keywords: ['art', 'painting', 'illustration', 'creative', 'abstract', 'surreal', 'imaginative', 'artistic'],
+    preferredProviders: ['LEONARDO', 'STABLE'],
+    fallbackProviders: ['BFL', 'REPLICATE'],
+    confidence: 0.85
+  },
+  'fantasy': {
+    keywords: ['fantasy', 'magical', 'mythical', 'dragon', 'wizard', 'medieval', 'enchanted', 'mystical', 'rpg'],
+    preferredProviders: ['LEONARDO', 'STABLE'],
+    fallbackProviders: ['BFL', 'REPLICATE'],
+    confidence: 0.9
+  },
+  'cinematic': {
+    keywords: ['cinematic', 'dramatic', 'epic', 'movie', 'film', 'scene', 'atmospheric', 'moody'],
+    preferredProviders: ['LEONARDO', 'BFL'],
+    fallbackProviders: ['STABLE', 'DALLE'],
+    confidence: 0.85
+  },
+  'game-asset': {
+    keywords: ['game', 'asset', 'sprite', 'texture', 'character design', 'concept art', 'gaming', 'video game'],
+    preferredProviders: ['LEONARDO', 'STABLE'],
+    fallbackProviders: ['FAL', 'BFL'],
+    confidence: 0.85
   },
   'ui-design': {
     keywords: ['ui', 'ux', 'interface', 'app', 'website', 'dashboard', 'mockup', 'wireframe', 'design'],
@@ -48,10 +66,10 @@ const useCaseMapping: Record<string, UseCase> = {
     confidence: 0.8
   },
   'social-media': {
-    keywords: ['instagram', 'tiktok', 'youtube', 'thumbnail', 'story', 'post', 'reel', 'viral'],
+    keywords: ['instagram', 'tiktok', 'youtube', 'thumbnail', 'story', 'post', 'reel', 'viral', 'social'],
     preferredProviders: ['LEONARDO', 'IDEOGRAM'],
-    fallbackProviders: ['FAL', 'CLIPDROP'],
-    confidence: 0.75
+    fallbackProviders: ['BFL', 'FAL'],
+    confidence: 0.8
   },
   'technical': {
     keywords: ['diagram', 'chart', 'graph', 'flowchart', 'architecture', 'schematic', 'blueprint'],
@@ -95,11 +113,11 @@ const useCaseMapping: Record<string, UseCase> = {
     fallbackProviders: ['GEMINI', 'STABLE'],
     confidence: 0.85
   },
-  'game-asset': {
-    keywords: ['game', 'asset', 'sprite', 'texture', 'character design', 'concept art'],
-    preferredProviders: ['LEONARDO', 'STABLE'],
-    fallbackProviders: ['FAL', 'BFL'],
-    confidence: 0.85
+  'multi-image': {
+    keywords: ['combine', 'multiple images', 'composite', 'merge', 'collage', 'blend images', 'mix images'],
+    preferredProviders: ['GEMINI'], // Unique multimodal capability
+    fallbackProviders: ['DALLE', 'LEONARDO'],
+    confidence: 0.9
   }
 };
 
@@ -235,7 +253,7 @@ export function selectProvider(
 
   // Check for speed keywords
   if (lower.includes('quick') || lower.includes('fast') || lower.includes('draft')) {
-    const speedProviders = ['FAL', 'DALLE', 'GEMINI'];
+    const speedProviders = ['FAL', 'GEMINI', 'DALLE'];
     for (const provider of speedProviders) {
       if (availableProviders.includes(provider)) {
         logger.info(`Selected ${provider} for speed-focused request`);
@@ -244,10 +262,19 @@ export function selectProvider(
     }
   }
 
-  // Default to first available provider
+  // Default to most versatile available provider (prioritize fallback chain order)
+  const preferredOrder = ['OPENAI', 'STABILITY', 'BFL', 'LEONARDO', 'GEMINI', 'IDEOGRAM', 'FAL', 'REPLICATE'];
+  for (const provider of preferredOrder) {
+    if (availableProviders.includes(provider)) {
+      logger.info(`Using default provider: ${provider}`);
+      return provider;
+    }
+  }
+
+  // Fallback to first available if none from preferred list
   if (availableProviders.length > 0) {
     const defaultProvider = availableProviders[0];
-    logger.info(`Using default provider: ${defaultProvider}`);
+    logger.info(`Using fallback default provider: ${defaultProvider}`);
     return defaultProvider;
   }
 
@@ -273,10 +300,10 @@ export function getProviderRecommendations(prompt: string): {
     };
   }
 
-  // Generic recommendations
+  // Generic recommendations (aligned with fallback chain)
   return {
-    primary: ['DALLE', 'STABLE', 'BFL'],
-    secondary: ['GEMINI', 'LEONARDO', 'FAL', 'IDEOGRAM'],
-    reason: 'No specific use case detected - using general-purpose providers'
+    primary: ['OPENAI', 'STABILITY', 'BFL'],
+    secondary: ['LEONARDO', 'GEMINI', 'IDEOGRAM', 'FAL'],
+    reason: 'No specific use case detected - using versatile general-purpose providers'
   };
 }

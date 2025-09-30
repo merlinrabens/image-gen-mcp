@@ -101,11 +101,14 @@ Add the MCP server to your MCP client configuration. The exact location depends 
 ```
 
 **Environment Variables**:
-- Add at least one provider API key (or use `MOCK` provider for testing)
+- **At least one provider API key is required for production use**
 - `DEFAULT_PROVIDER`: Set to `"auto"` for intelligent selection or specify a provider name
 - `LOG_LEVEL`: `"debug"` | `"info"` | `"warn"` | `"error"`
 - `DISABLE_FALLBACK`: Set to `"true"` to prevent fallback to other providers
+- `ALLOW_MOCK_PROVIDER`: Set to `"true"` to allow MOCK provider in production (not recommended)
 - `IMAGE_OUTPUT_DIR`: Where to save generated images (see [Image Storage](#image-storage) section)
+
+**Note**: If no real providers are configured, the server will fail with a clear error message instead of silently using MOCK. The MOCK provider is automatically available in development/test environments (`NODE_ENV=development` or `NODE_ENV=test`).
 
 ### API Keys
 
