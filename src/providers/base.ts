@@ -106,6 +106,66 @@ export abstract class ImageProvider {
   }
 
   /**
+   * Helper to get buffer from either a data URL or file path
+   * Supports:
+   * - data:image/png;base64,... (data URLs)
+   * - /path/to/file.png (absolute file paths)
+   * - file:///path/to/file.png (file URLs)
+   */
+  protected async getImageBuffer(input: string): Promise<{ buffer: Buffer; mimeType: string }> {
+    // Check if it's a data URL
+    if (input.startsWith('data:')) {
+      return this.dataUrlToBuffer(input);
+    }
+
+    // Handle file paths or file:// URLs
+    let filePath = input;
+    if (input.startsWith('file://')) {
+      // Convert file:// URL to path
+      filePath = input.replace('file://', '');
+    }
+
+    // Load file from disk
+    const fs = await import('fs/promises');
+    const path = await import('path');
+
+    try {
+      const buffer = await fs.readFile(filePath);
+
+      // Security: Validate buffer size
+      if (buffer.length > MAX_IMAGE_SIZE) {
+        throw new ProviderError(
+          `Image size ${(buffer.length / 1024 / 1024).toFixed(2)}MB exceeds maximum allowed size of ${MAX_IMAGE_SIZE / 1024 / 1024}MB`,
+          this.name,
+          false
+        );
+      }
+
+      // Determine mime type from extension
+      const ext = path.extname(filePath).toLowerCase();
+      const mimeTypes: Record<string, string> = {
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.webp': 'image/webp',
+        '.gif': 'image/gif'
+      };
+      const mimeType = mimeTypes[ext] || 'image/png';
+
+      return {
+        buffer,
+        mimeType
+      };
+    } catch (error) {
+      throw new ProviderError(
+        `Failed to load image from path: ${filePath}. Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        this.name,
+        false
+      );
+    }
+  }
+
+  /**
    * Helper to create timeout with AbortController and cleanup
    */
   protected createTimeout(ms: number = DEFAULT_TIMEOUT): AbortController {

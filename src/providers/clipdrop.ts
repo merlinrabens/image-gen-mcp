@@ -190,8 +190,8 @@ export class ClipdropProvider extends ImageProvider {
 
       const formData = new FormData();
 
-        // Extract and validate base image
-        const imageData = this.dataUrlToBuffer(input.baseImage);
+        // Extract and validate base image (supports both data URLs and file paths)
+        const imageData = await this.getImageBuffer(input.baseImage);
         const imageBuffer = imageData.buffer;
       const imageBlob = new Blob([imageBuffer], { type: 'image/png' });
       formData.append('image_file', imageBlob, 'image.png');
@@ -204,7 +204,7 @@ export class ClipdropProvider extends ImageProvider {
 
         case 'remove-object':
           if (input.maskImage) {
-            const maskData = this.dataUrlToBuffer(input.maskImage);
+            const maskData = await this.getImageBuffer(input.maskImage);
             const maskBuffer = maskData.buffer;
             const maskBlob = new Blob([maskBuffer], { type: 'image/png' });
             formData.append('mask_file', maskBlob, 'mask.png');

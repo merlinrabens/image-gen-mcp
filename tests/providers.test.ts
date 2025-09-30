@@ -61,6 +61,117 @@ describe('Provider Base Class', () => {
     });
   });
 
+  describe('Image Input Support', () => {
+    it('should handle data URLs in getImageBuffer', async () => {
+      const buffer = Buffer.from('test image data');
+      const dataUrl = `data:image/png;base64,${buffer.toString('base64')}`;
+
+      const result = await provider.getImageBuffer(dataUrl);
+
+      expect(result.buffer).toEqual(buffer);
+      expect(result.mimeType).toBe('image/png');
+    });
+
+    it('should handle file paths in getImageBuffer', async () => {
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      const os = await import('os');
+
+      // Create a temporary test file
+      const tempDir = os.tmpdir();
+      const tempFile = path.join(tempDir, 'test-image.png');
+      const testData = Buffer.from('test image file data');
+      await fs.writeFile(tempFile, testData);
+
+      try {
+        const result = await provider.getImageBuffer(tempFile);
+
+        expect(result.buffer).toEqual(testData);
+        expect(result.mimeType).toBe('image/png');
+      } finally {
+        // Clean up
+        await fs.unlink(tempFile).catch(() => {});
+      }
+    });
+
+    it('should handle file:// URLs in getImageBuffer', async () => {
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      const os = await import('os');
+
+      // Create a temporary test file
+      const tempDir = os.tmpdir();
+      const tempFile = path.join(tempDir, 'test-image.jpg');
+      const testData = Buffer.from('test jpeg file data');
+      await fs.writeFile(tempFile, testData);
+
+      try {
+        const fileUrl = `file://${tempFile}`;
+        const result = await provider.getImageBuffer(fileUrl);
+
+        expect(result.buffer).toEqual(testData);
+        expect(result.mimeType).toBe('image/jpeg');
+      } finally {
+        // Clean up
+        await fs.unlink(tempFile).catch(() => {});
+      }
+    });
+
+    it('should validate file size for file paths', async () => {
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      const os = await import('os');
+
+      // Create a large temporary test file (11MB)
+      const tempDir = os.tmpdir();
+      const tempFile = path.join(tempDir, 'large-image.png');
+      const largeData = Buffer.alloc(11 * 1024 * 1024);
+      await fs.writeFile(tempFile, largeData);
+
+      try {
+        await expect(provider.getImageBuffer(tempFile)).rejects.toThrow(ProviderError);
+      } finally {
+        // Clean up
+        await fs.unlink(tempFile).catch(() => {});
+      }
+    });
+
+    it('should handle missing files gracefully', async () => {
+      const nonExistentFile = '/path/to/non/existent/file.png';
+
+      await expect(provider.getImageBuffer(nonExistentFile)).rejects.toThrow(ProviderError);
+    });
+
+    it('should detect mime types from file extensions', async () => {
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      const os = await import('os');
+
+      const tempDir = os.tmpdir();
+      const testCases = [
+        { ext: '.png', mimeType: 'image/png' },
+        { ext: '.jpg', mimeType: 'image/jpeg' },
+        { ext: '.jpeg', mimeType: 'image/jpeg' },
+        { ext: '.webp', mimeType: 'image/webp' },
+        { ext: '.gif', mimeType: 'image/gif' },
+        { ext: '.unknown', mimeType: 'image/png' } // Default fallback
+      ];
+
+      for (const testCase of testCases) {
+        const tempFile = path.join(tempDir, `test${testCase.ext}`);
+        const testData = Buffer.from('test data');
+        await fs.writeFile(tempFile, testData);
+
+        try {
+          const result = await provider.getImageBuffer(tempFile);
+          expect(result.mimeType).toBe(testCase.mimeType);
+        } finally {
+          await fs.unlink(tempFile).catch(() => {});
+        }
+      }
+    });
+  });
+
   describe('Performance Features', () => {
     it('should implement rate limiting', async () => {
       // First 10 requests should succeed
