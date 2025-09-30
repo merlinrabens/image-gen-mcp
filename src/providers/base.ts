@@ -166,6 +166,44 @@ export abstract class ImageProvider {
   }
 
   /**
+   * Helper to detect image dimensions from buffer, data URL, or file path
+   * Uses sharp for accurate dimension detection
+   */
+  protected async detectImageDimensions(input: string): Promise<{ width: number; height: number }> {
+    try {
+      const sharp = (await import('sharp')).default;
+
+      // Get the buffer first
+      const { buffer } = await this.getImageBuffer(input);
+
+      // Use sharp to get metadata
+      const metadata = await sharp(buffer).metadata();
+
+      if (!metadata.width || !metadata.height) {
+        throw new ProviderError(
+          'Could not detect image dimensions',
+          this.name,
+          false
+        );
+      }
+
+      return {
+        width: metadata.width,
+        height: metadata.height
+      };
+    } catch (error) {
+      if (error instanceof ProviderError) {
+        throw error;
+      }
+      throw new ProviderError(
+        `Failed to detect image dimensions: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        this.name,
+        false
+      );
+    }
+  }
+
+  /**
    * Helper to create timeout with AbortController and cleanup
    */
   protected createTimeout(ms: number = DEFAULT_TIMEOUT): AbortController {

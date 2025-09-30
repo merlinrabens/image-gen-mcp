@@ -138,6 +138,15 @@ export class StabilityProvider extends ImageProvider {
       // Extract base64 data from data URL or file path
       const baseImageData = await this.getImageBuffer(input.baseImage);
 
+      // Detect dimensions if not provided
+      let width = input.width;
+      let height = input.height;
+      if (!width || !height) {
+        const dimensions = await this.detectImageDimensions(input.baseImage);
+        width = width || dimensions.width;
+        height = height || dimensions.height;
+      }
+
       // Create multipart form data
       const boundary = `----FormBoundary${Date.now()}`;
       const parts: Buffer[] = [];
@@ -170,6 +179,13 @@ export class StabilityProvider extends ImageProvider {
         `--${boundary}\r\n` +
         `Content-Disposition: form-data; name="output_format"\r\n\r\n` +
         `png\r\n`
+      ));
+
+      // Add aspect ratio based on detected/provided dimensions
+      parts.push(Buffer.from(
+        `--${boundary}\r\n` +
+        `Content-Disposition: form-data; name="aspect_ratio"\r\n\r\n` +
+        `${this.getAspectRatio(width, height)}\r\n`
       ));
 
       // Add strength (how much to change the image)
