@@ -1,6 +1,6 @@
 {
   "name": "@merlinrabens/image-gen-mcp",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "MCP server for image generation with multiple provider support",
   "main": "dist/index.js",
   "bin": {
