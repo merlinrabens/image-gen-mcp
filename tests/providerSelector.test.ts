@@ -163,8 +163,8 @@ describe('Provider Selector', () => {
         'nice image',
         ['GEMINI', 'OPENAI']
       );
-      // OPENAI is prioritized in fallback chain over GEMINI
-      expect(provider).toBe('OPENAI');
+      // GEMINI is now prioritized in fallback chain over OPENAI for better editing
+      expect(provider).toBe('GEMINI');
     });
   });
 
