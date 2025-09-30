@@ -184,7 +184,7 @@ describe('BFL Provider', () => {
     // Verify the request was called with correct parameters
     const undiciModule = await import('undici');
     expect(undiciModule.request).toHaveBeenCalledWith(
-      expect.stringContaining('api.bfl.ai'),
+      expect.stringContaining('api.bfl.ml'),
       expect.objectContaining({
         method: 'POST',
         headers: expect.objectContaining({
