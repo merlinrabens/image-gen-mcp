@@ -53,4 +53,7 @@ venv/
 # Test artifacts
 *.txt
 !.env.example
-!.env.test.image-gen-mcp/
+!.env.test
+
+# Generated images directory
+.image-gen-mcp/
