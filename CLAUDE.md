@@ -359,8 +359,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 - [ ] Documentation updated
 
 ## Git Commit and PR Rules (CRITICAL)
+- NEVER push directly to main branch - always create a feature branch and PR
 - NEVER add "Co-Authored-By: Claude" or any co-author attribution in commits
 - NEVER mention "Generated with Claude Code" or similar in commit messages
 - NEVER add Claude attribution, robot emojis (🤖), or AI-generated mentions in PR descriptions
 - NEVER reference Claude, AI assistance, or automated generation in any git-related text
 - Write commit messages and PR descriptions as if written directly by the developer
+- Always use feature branches: `git checkout -b feat/feature-name` or `fix/bug-name`
+- Always create PRs for review before merging to main
