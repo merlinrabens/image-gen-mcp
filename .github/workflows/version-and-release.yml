@@ -214,7 +214,7 @@ jobs:
         run: npm test
 
       - name: Publish to NPM
-        run: npm publish
+        run: npm publish --access=public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -228,6 +228,6 @@ jobs:
 
       - name: Notify success
         run: |
-          echo "✅ Successfully published image-gen-mcp@${{ steps.version_info.outputs.VERSION }} to NPM"
-          echo "📦 Install with: npm install -g image-gen-mcp@latest"
+          echo "✅ Successfully published @merlinrabens/image-gen-mcp@${{ steps.version_info.outputs.VERSION }} to NPM"
+          echo "📦 Install with: npm install -g @merlinrabens/image-gen-mcp@latest"
           echo "🏷️ Tagged as: ${{ steps.version_info.outputs.TAG }}"
