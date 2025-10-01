@@ -49,19 +49,27 @@ export class OpenAIProvider extends ImageProvider {
     try {
       const controller = this.createTimeout();
 
+      // Build request body based on model
+      const requestBody: any = {
+        model,
+        prompt: input.prompt,
+        size,
+        n: 1
+      };
+
+      // gpt-image-1 doesn't support response_format parameter
+      // Only dall-e-3 and dall-e-2 support it
+      if (model === 'dall-e-3' || model === 'dall-e-2') {
+        requestBody.response_format = 'b64_json';
+      }
+
       const { statusCode, body } = await request('https://api.openai.com/v1/images/generations', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          model,
-          prompt: input.prompt,
-          size,
-          response_format: 'b64_json',
-          n: 1
-        }),
+        body: JSON.stringify(requestBody),
         signal: controller.signal
       });
 
@@ -73,9 +81,25 @@ export class OpenAIProvider extends ImageProvider {
         throw new ProviderError(message, this.name, isRetryable, response);
       }
 
-      const images = response.data.map((img: any) => ({
-        dataUrl: `data:image/png;base64,${img.b64_json}`,
-        format: 'png' as const
+      // Handle response based on model
+      const images = await Promise.all(response.data.map(async (img: any) => {
+        if (img.b64_json) {
+          // dall-e models return base64
+          return {
+            dataUrl: `data:image/png;base64,${img.b64_json}`,
+            format: 'png' as const
+          };
+        } else if (img.url) {
+          // gpt-image-1 returns URL - download and convert to data URL
+          const imageResponse = await fetch(img.url);
+          const arrayBuffer = await imageResponse.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
+          return {
+            dataUrl: this.bufferToDataUrl(buffer, 'image/png'),
+            format: 'png' as const
+          };
+        }
+        throw new ProviderError('No image data in OpenAI response', this.name, false);
       }));
 
       return {
