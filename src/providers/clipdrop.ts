@@ -50,14 +50,13 @@ export class ClipdropProvider extends ImageProvider {
       supportsCustomModels: false,
       supportsBackgroundRemoval: true, // Unique feature
       supportsObjectRemoval: true, // Unique feature
-      supportsSketchToImage: true, // Unique feature
-      maxWidth: 2048,
-      maxHeight: 2048,
-      defaultModel: 'stable-diffusion-xl',
+      supportsTextRemoval: true, // Unique feature
+      supportsUncrop: true, // Unique feature
+      maxWidth: 1024, // text-to-image generates 1024x1024
+      maxHeight: 1024,
+      defaultModel: 'stable-diffusion',
       availableModels: [
-        'stable-diffusion-xl',
-        'sketch-to-image',
-        'reimagine' // Their unique style transfer model
+        'text-to-image'
       ]
     };
   }
@@ -203,7 +202,8 @@ export class ClipdropProvider extends ImageProvider {
       // Add parameters based on edit type
       switch (editType) {
         case 'remove-background':
-          // No additional params needed
+        case 'remove-text':
+          // No additional params needed - just image_file
           break;
 
         case 'remove-object':
@@ -219,18 +219,20 @@ export class ClipdropProvider extends ImageProvider {
           formData.append('prompt', input.prompt);
           break;
 
-        case 'reimagine':
-          // Style transfer
-          formData.append('style', this.extractStyle(input.prompt));
+        case 'upscale':
+          // ClipDrop's upscaling API has different parameters
+          // target_width and target_height can be specified
+          if (input.width) formData.append('target_width', input.width.toString());
+          if (input.height) formData.append('target_height', input.height.toString());
           break;
 
-        case 'upscale':
-          formData.append('scale', '2'); // 2x upscale
-          formData.append('model', 'real-esrgan'); // Best upscaling model
+        case 'uncrop':
+          // Uncrop requires aspect_ratio or extend parameters
+          formData.append('prompt', input.prompt);
           break;
 
         default:
-          // Standard image editing with prompt
+          // Default to replace-background with prompt
           formData.append('prompt', input.prompt);
       }
 
@@ -289,22 +291,9 @@ export class ClipdropProvider extends ImageProvider {
     });
   }
 
-  private selectEndpoint(input: GenerateInput): string {
-    const lower = input.prompt.toLowerCase();
-
-    if (input.model === 'sketch-to-image' ||
-        lower.includes('sketch') ||
-        lower.includes('drawing')) {
-      return '/sketch-to-image/v1/sketch-to-image';
-    }
-
-    if (input.model === 'reimagine' ||
-        lower.includes('reimagine') ||
-        lower.includes('style')) {
-      return '/reimagine/v1/reimagine';
-    }
-
-    // Default to text-to-image
+  private selectEndpoint(_input: GenerateInput): string {
+    // ClipDrop only supports text-to-image for generation
+    // Other features like sketch-to-image and reimagine may be deprecated or unavailable
     return '/text-to-image/v1';
   }
 
@@ -314,6 +303,11 @@ export class ClipdropProvider extends ImageProvider {
     if (lower.includes('remove background') ||
         lower.includes('transparent')) {
       return 'remove-background';
+    }
+
+    if (lower.includes('remove text') ||
+        lower.includes('delete text')) {
+      return 'remove-text';
     }
 
     if (lower.includes('remove object') ||
@@ -333,39 +327,27 @@ export class ClipdropProvider extends ImageProvider {
       return 'upscale';
     }
 
-    if (lower.includes('reimagine') ||
-        lower.includes('restyle') ||
-        lower.includes('different style')) {
-      return 'reimagine';
+    if (lower.includes('uncrop') ||
+        lower.includes('expand') ||
+        lower.includes('extend')) {
+      return 'uncrop';
     }
 
-    return 'standard';
+    return 'replace-background';
   }
 
   private getEditEndpoint(editType: string): string {
     const endpoints: Record<string, string> = {
       'remove-background': '/remove-background/v1',
       'remove-object': '/cleanup/v1',
+      'remove-text': '/remove-text/v1',
       'replace-background': '/replace-background/v1',
-      'upscale': '/super-resolution/v1',
-      'reimagine': '/reimagine/v1/reimagine',
-      'standard': '/image-editing/v1'
+      'upscale': '/image-upscaling/v1',
+      'uncrop': '/uncrop/v1'
     };
 
-    return endpoints[editType] || endpoints.standard;
+    // Default to replace-background as the most general editing operation
+    return endpoints[editType] || endpoints['replace-background'];
   }
 
-  private extractStyle(prompt: string): string {
-    const lower = prompt.toLowerCase();
-
-    if (lower.includes('anime')) return 'anime';
-    if (lower.includes('cartoon')) return 'cartoon';
-    if (lower.includes('digital art')) return 'digital_art';
-    if (lower.includes('fantasy')) return 'fantasy';
-    if (lower.includes('neon')) return 'neon_punk';
-    if (lower.includes('pixel')) return 'pixel_art';
-    if (lower.includes('comic')) return 'comic_book';
-
-    return 'enhance'; // Default style
-  }
 }
