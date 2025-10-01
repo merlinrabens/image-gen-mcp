@@ -562,7 +562,8 @@ describe('Clipdrop Provider', () => {
     const capabilities = provider.getCapabilities();
     expect(capabilities.supportsBackgroundRemoval).toBe(true);
     expect(capabilities.supportsObjectRemoval).toBe(true);
-    expect(capabilities.supportsSketchToImage).toBe(true);
+    expect(capabilities.supportsTextRemoval).toBe(true);
+    expect(capabilities.supportsUncrop).toBe(true);
   });
 
   it('should determine edit type from prompt', async () => {
