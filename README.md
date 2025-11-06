@@ -371,30 +371,73 @@ Response: Same format as image_generate (JSON or Markdown based on response_form
 
 ## Provider Examples
 
-### Image Editing with File Paths
+### Image Editing Examples
 
-Edit generated images directly using file paths:
+**Basic Editing (OpenAI gpt-image-1):**
 ```javascript
-// After generating an image saved to disk
 {
   "prompt": "Add a sunset background",
   "baseImage": "/path/to/generated-image.png",  // Direct file path
   "provider": "OPENAI"
 }
+```
 
-// Or using a data URL (still supported)
+**Style Transfer (Stability AI):**
+```javascript
 {
-  "prompt": "Make it more colorful",
-  "baseImage": "data:image/png;base64,iVBORw0...",
-  "provider": "STABILITY"
+  "prompt": "Transform this into a watercolor painting style",
+  "baseImage": "/path/to/photo.png",
+  "provider": "STABILITY",
+  "strength": 0.7  // Control transformation strength (0.0-1.0)
 }
+```
 
-// With a mask for selective editing
+**Background Replacement (BFL Flux):**
+```javascript
 {
-  "prompt": "Replace the background with mountains",
-  "baseImage": "/path/to/image.png",
-  "maskImage": "/path/to/mask.png",  // Both support file paths
+  "prompt": "Replace the background with a mountain landscape at sunset",
+  "baseImage": "/path/to/portrait.png",
   "provider": "BFL"
+}
+```
+
+**Object Removal (Ideogram V3):**
+```javascript
+{
+  "prompt": "Remove the person in the background",
+  "baseImage": "/path/to/image.png",
+  "provider": "IDEOGRAM",
+  "model": "V_3"
+}
+```
+
+**Masked Editing (OpenAI):**
+```javascript
+{
+  "prompt": "Replace the sky with dramatic storm clouds",
+  "baseImage": "/path/to/landscape.png",
+  "maskImage": "/path/to/sky-mask.png",  // White areas = edit, Black = preserve
+  "provider": "OPENAI"
+}
+```
+
+**Advanced Editing with Gemini:**
+```javascript
+{
+  "prompt": "Remove the person in the background and add a rainbow in the sky",
+  "baseImage": "data:image/png;base64,...",
+  "provider": "GEMINI"
+  // Gemini excels at understanding complex multi-step instructions
+}
+```
+
+**Background Removal (Clipdrop):**
+```javascript
+{
+  "prompt": "Remove background",
+  "baseImage": "/path/to/product-photo.png",
+  "provider": "CLIPDROP"
+  // Specialized for high-quality background removal
 }
 ```
 
@@ -481,14 +524,80 @@ For editing:
 }
 ```
 
-### Ideogram
+### Recraft V3 ⭐ NEW
 
-Best-in-class text rendering for logos and posters:
+#1 globally ranked model (ELO 1172, 72% win rate) with unique vector generation and perfect text rendering:
+
+**Logo Design:**
+```javascript
+{
+  "prompt": "A modern tech startup logo with the text 'ACME' in a clean, minimalist style",
+  "provider": "RECRAFT",
+  "width": 1024,
+  "height": 1024
+}
+```
+
+**Text-Heavy Marketing Material:**
+```javascript
+{
+  "prompt": "A professional marketing poster with the headline 'Summer Sale 50% OFF' and subtext 'Limited Time Only'",
+  "provider": "RECRAFT",
+  "width": 1024,
+  "height": 1024
+}
+```
+
+**Vector Illustration (SVG):**
+```javascript
+{
+  "prompt": "A vector illustration of a mountain landscape in flat design style",
+  "provider": "RECRAFT",
+  "width": 1024,
+  "height": 1024
+  // Will automatically use vector_illustration style
+}
+```
+
+**Digital Art:**
+```javascript
+{
+  "prompt": "A digital illustration of a futuristic city with neon lights",
+  "provider": "RECRAFT",
+  "width": 1024,
+  "height": 1024
+}
+```
+
+**Realistic Photography:**
+```javascript
+{
+  "prompt": "A photorealistic image of a modern office workspace with natural lighting",
+  "provider": "RECRAFT",
+  "width": 1024,
+  "height": 768  // Supports custom dimensions
+}
+```
+
+**Best for:** Logos, branding, graphic design, text-heavy images (posters, packaging), vector graphics, professional marketing materials.
+
+### Ideogram V3 ⭐ UPGRADED
+
+Industry-leading text rendering with enhanced photorealism (March 2025 release):
 ```javascript
 {
   "prompt": "A vintage poster with the text 'SUMMER FESTIVAL 2025' in bold retro typography",
   "provider": "IDEOGRAM",
-  "model": "V_2_TURBO"
+  "model": "V_3"  // Latest model with enhanced capabilities
+}
+```
+
+**Fast Generation:**
+```javascript
+{
+  "prompt": "Quick logo mockup with text 'TechCo'",
+  "provider": "IDEOGRAM",
+  "model": "V_3_TURBO"  // Faster V3 variant
 }
 ```
 

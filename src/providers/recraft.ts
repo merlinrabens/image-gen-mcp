@@ -79,7 +79,7 @@ export class RecraftProvider extends ImageProvider {
         const size = `${width}x${height}`;
 
         // Build request body with required parameters only
-        // Model: recraftv3 is the latest Recraft V3 model
+        // Model: recraftv3 is the Recraft V3 model identifier in the API
         const requestBody: any = {
           prompt: input.prompt,
           size: size,
