@@ -40,6 +40,7 @@ export class IdeogramProvider extends ImageProvider {
         'V_1' // Legacy version
       ],
       supportedFormats: ['png', 'jpg'] as const,
+      specialFeatures: ['text_rendering', 'photorealism', 'typography'],
       notes: [
         'Industry-leading text rendering quality',
         'V3 launched March 2025 with enhanced photorealism',

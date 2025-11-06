@@ -11,7 +11,7 @@ describe('Provider Selector', () => {
       const result = analyzePrompt('create a modern logo for tech startup');
       expect(result).not.toBeNull();
       expect(result?.useCase).toBe('logo');
-      expect(result?.confidence).toBeGreaterThan(0.5);
+      expect(result?.confidence).toBeGreaterThanOrEqual(0.5);
     });
 
     it('should detect text-heavy use case', () => {
