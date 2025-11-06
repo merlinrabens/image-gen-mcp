@@ -11,17 +11,29 @@ interface UseCase {
 }
 
 const useCaseMapping: Record<string, UseCase> = {
+  'vector-design': {
+    keywords: ['vector', 'svg', 'scalable', 'print-ready', 'vector art', 'vector illustration'],
+    preferredProviders: ['RECRAFT'], // ONLY provider with vector capability
+    fallbackProviders: ['IDEOGRAM', 'OPENAI'],
+    confidence: 0.95
+  },
   'logo': {
-    keywords: ['logo', 'brand', 'icon', 'symbol', 'emblem', 'mark', 'badge'],
-    preferredProviders: ['IDEOGRAM', 'DALLE'],
-    fallbackProviders: ['LEONARDO', 'STABLE'],
+    keywords: ['logo', 'brand', 'icon', 'symbol', 'emblem', 'mark', 'badge', 'branding', 'brand identity'],
+    preferredProviders: ['RECRAFT', 'IDEOGRAM'], // Recraft #1 for perfect text
+    fallbackProviders: ['OPENAI', 'LEONARDO'],
     confidence: 0.9
   },
   'text-heavy': {
-    keywords: ['text', 'poster', 'banner', 'sign', 'quote', 'typography', 'lettering', 'flyer', 'advertisement'],
-    preferredProviders: ['IDEOGRAM'],
-    fallbackProviders: ['DALLE', 'GEMINI'],
+    keywords: ['text', 'poster', 'banner', 'sign', 'quote', 'typography', 'lettering', 'flyer', 'advertisement', 'text layout', 'perfect text'],
+    preferredProviders: ['RECRAFT', 'IDEOGRAM'], // Both excel at text rendering
+    fallbackProviders: ['OPENAI', 'GEMINI'],
     confidence: 0.95
+  },
+  'graphic-design': {
+    keywords: ['graphic design', 'marketing material', 'packaging', 'print design', 'professional design'],
+    preferredProviders: ['RECRAFT', 'IDEOGRAM'],
+    fallbackProviders: ['OPENAI', 'LEONARDO'],
+    confidence: 0.9
   },
   'photorealistic': {
     keywords: ['realistic', 'photo', 'photography', 'real', 'lifelike', 'portrait', 'headshot', 'professional'],

@@ -11,6 +11,7 @@ import { BFLProvider } from './providers/bfl.js';
 import { LeonardoProvider } from './providers/leonardo.js';
 import { FalProvider } from './providers/fal.js';
 import { ClipdropProvider } from './providers/clipdrop.js';
+import { RecraftProvider } from './providers/recraft.js';
 import { ProviderName, ProviderError } from './types.js';
 import { selectProvider } from './services/providerSelector.js';
 
@@ -59,6 +60,9 @@ export class Config {
       case 'CLIPDROP':
         provider = new ClipdropProvider();
         break;
+      case 'RECRAFT':
+        provider = new RecraftProvider();
+        break;
     }
 
     if (provider) {
@@ -79,7 +83,7 @@ export class Config {
    */
   static getAllProviders(): Map<ProviderName, ImageProvider> {
     // Create all providers lazily
-    const allNames: ProviderName[] = ['MOCK', 'OPENAI', 'STABILITY', 'REPLICATE', 'GEMINI', 'IDEOGRAM', 'BFL', 'LEONARDO', 'FAL', 'CLIPDROP'];
+    const allNames: ProviderName[] = ['MOCK', 'OPENAI', 'STABILITY', 'REPLICATE', 'GEMINI', 'IDEOGRAM', 'BFL', 'LEONARDO', 'FAL', 'CLIPDROP', 'RECRAFT'];
     for (const name of allNames) {
       this.createProvider(name);
     }
@@ -91,7 +95,7 @@ export class Config {
    */
   static getConfiguredProviders(): ProviderName[] {
     const configured: ProviderName[] = [];
-    const allNames: ProviderName[] = ['MOCK', 'OPENAI', 'STABILITY', 'REPLICATE', 'GEMINI', 'IDEOGRAM', 'BFL', 'LEONARDO', 'FAL', 'CLIPDROP'];
+    const allNames: ProviderName[] = ['MOCK', 'OPENAI', 'STABILITY', 'REPLICATE', 'GEMINI', 'IDEOGRAM', 'BFL', 'LEONARDO', 'FAL', 'CLIPDROP', 'RECRAFT'];
 
     for (const name of allNames) {
       const provider = this.createProvider(name);
@@ -108,7 +112,7 @@ export class Config {
    */
   static getConfiguredEditProviders(): ProviderName[] {
     const configured: ProviderName[] = [];
-    const allNames: ProviderName[] = ['MOCK', 'OPENAI', 'STABILITY', 'REPLICATE', 'GEMINI', 'IDEOGRAM', 'BFL', 'LEONARDO', 'FAL', 'CLIPDROP'];
+    const allNames: ProviderName[] = ['MOCK', 'OPENAI', 'STABILITY', 'REPLICATE', 'GEMINI', 'IDEOGRAM', 'BFL', 'LEONARDO', 'FAL', 'CLIPDROP', 'RECRAFT'];
 
     for (const name of allNames) {
       const provider = this.createProvider(name);
@@ -150,15 +154,16 @@ export class Config {
     }
 
     // Fallback chain - prioritize versatility, reliability, and quality
-    // OPENAI: Best prompt understanding, most versatile
-    // STABILITY: Mature, reliable, broad use cases
+    // RECRAFT: #1 globally, perfect text rendering, vector generation
     // BFL: High-quality photorealism
+    // OPENAI: Best prompt understanding, most versatile
     // LEONARDO: Excellent artistic quality, cinematic, fantasy
-    // GEMINI: Google infrastructure, unique multimodal capabilities
     // IDEOGRAM: Specialized text rendering
+    // STABILITY: Mature, reliable, broad use cases
+    // GEMINI: Google infrastructure, unique multimodal capabilities
     // FAL: Ultra-fast generation
     // REPLICATE: Variable quality open models
-    const fallbackChain: ProviderName[] = ['OPENAI', 'STABILITY', 'BFL', 'LEONARDO', 'GEMINI', 'IDEOGRAM', 'FAL', 'REPLICATE'];
+    const fallbackChain: ProviderName[] = ['RECRAFT', 'BFL', 'OPENAI', 'LEONARDO', 'IDEOGRAM', 'STABILITY', 'GEMINI', 'FAL', 'REPLICATE'];
 
     for (const name of fallbackChain) {
       const provider = this.createProvider(name);
@@ -256,7 +261,7 @@ export class Config {
     capabilities: ReturnType<ImageProvider['getCapabilities']>;
   }> {
     const status = [];
-    const allNames: ProviderName[] = ['MOCK', 'OPENAI', 'STABILITY', 'REPLICATE', 'GEMINI', 'IDEOGRAM', 'BFL', 'LEONARDO', 'FAL', 'CLIPDROP'];
+    const allNames: ProviderName[] = ['MOCK', 'OPENAI', 'STABILITY', 'REPLICATE', 'GEMINI', 'IDEOGRAM', 'BFL', 'LEONARDO', 'FAL', 'CLIPDROP', 'RECRAFT'];
 
     for (const name of allNames) {
       const provider = this.createProvider(name);

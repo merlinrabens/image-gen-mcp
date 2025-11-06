@@ -99,7 +99,7 @@ export interface ProviderResult {
   warnings?: string[];
 }
 
-export type ProviderName = 'OPENAI' | 'STABILITY' | 'REPLICATE' | 'GEMINI' | 'IDEOGRAM' | 'BFL' | 'LEONARDO' | 'FAL' | 'CLIPDROP' | 'MOCK';
+export type ProviderName = 'OPENAI' | 'STABILITY' | 'REPLICATE' | 'GEMINI' | 'IDEOGRAM' | 'BFL' | 'LEONARDO' | 'FAL' | 'CLIPDROP' | 'MOCK' | 'RECRAFT' | 'FAL_FLUX' | 'QWEN';
 
 export class ProviderError extends Error {
   constructor(

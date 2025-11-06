@@ -33,14 +33,19 @@ export class IdeogramProvider extends ImageProvider {
       maxWidth: 2048,
       maxHeight: 2048,
       supportedModels: [
-        'V_2', // Latest version with best text rendering
+        'V_3', // Latest - March 2025, enhanced text & photorealism
+        'V_3_TURBO', // Faster V3 generation
+        'V_2', // Previous version with excellent text rendering
         'V_2_TURBO', // Faster generation
         'V_1' // Legacy version
       ],
-      specialFeatures: [
-        'text_rendering', // Exceptional text clarity
-        'style_presets', // Logo, poster, etc.
-        'magic_prompt' // AI-enhanced prompts
+      supportedFormats: ['png', 'jpg'] as const,
+      notes: [
+        'Industry-leading text rendering quality',
+        'V3 launched March 2025 with enhanced photorealism',
+        'Complex multi-line text layouts supported',
+        'Professional typography control',
+        'Best for logos, posters, packaging design'
       ]
     };
   }
@@ -316,7 +321,7 @@ export class IdeogramProvider extends ImageProvider {
       return {
         images,
         provider: this.name,
-        model: input.model || 'V_2'
+        model: input.model || 'V_3' // Default to V3 (latest, March 2025)
       };
     } catch (error) {
       if (error instanceof ProviderError) throw error;
