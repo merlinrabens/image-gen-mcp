@@ -92,14 +92,14 @@ export type EditInput = z.infer<typeof EditInputSchema>;
 export interface ProviderResult {
   images: Array<{
     dataUrl: string;
-    format: 'png' | 'jpg' | 'jpeg' | 'webp';
+    format: 'png' | 'jpg' | 'jpeg' | 'webp' | 'svg';
   }>;
   provider: string;
   model?: string;
   warnings?: string[];
 }
 
-export type ProviderName = 'OPENAI' | 'STABILITY' | 'REPLICATE' | 'GEMINI' | 'IDEOGRAM' | 'BFL' | 'LEONARDO' | 'FAL' | 'CLIPDROP' | 'MOCK';
+export type ProviderName = 'OPENAI' | 'STABILITY' | 'REPLICATE' | 'GEMINI' | 'IDEOGRAM' | 'BFL' | 'LEONARDO' | 'FAL' | 'CLIPDROP' | 'MOCK' | 'RECRAFT' | 'FAL_FLUX' | 'QWEN';
 
 export class ProviderError extends Error {
   constructor(
