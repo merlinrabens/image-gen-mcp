@@ -143,10 +143,35 @@ export class RecraftProvider extends ImageProvider {
 
         const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
 
-        // Determine MIME type based on format
-        const mimeType = imageFormat === 'vector'
-          ? 'image/svg+xml'
-          : 'image/png';
+        // Determine actual MIME type and format by inspecting the buffer
+        let mimeType: string;
+        let format: 'png' | 'jpg' | 'jpeg' | 'webp' | 'svg';
+
+        // Check if it's SVG by looking at buffer content
+        const bufferStart = imageBuffer.toString('utf8', 0, Math.min(100, imageBuffer.length));
+        const isSVG = bufferStart.includes('<svg') || imageFormat === 'vector';
+
+        if (isSVG) {
+          // Vector images are SVG
+          mimeType = 'image/svg+xml';
+          format = 'svg';
+        } else {
+          // Check for WebP magic bytes (RIFF...WEBP)
+          const isWebP = imageBuffer.length > 12 &&
+                        imageBuffer[8] === 0x57 &&
+                        imageBuffer[9] === 0x45 &&
+                        imageBuffer[10] === 0x42 &&
+                        imageBuffer[11] === 0x50;
+
+          if (isWebP) {
+            mimeType = 'image/webp';
+            format = 'webp';
+          } else {
+            // Fallback to PNG if detection fails
+            mimeType = 'image/png';
+            format = 'png';
+          }
+        }
 
         const dataUrl = this.bufferToDataUrl(imageBuffer, mimeType);
 
@@ -155,7 +180,7 @@ export class RecraftProvider extends ImageProvider {
           model: 'recraftv3',
           images: [{
             dataUrl,
-            format: 'png' // Base format type for compatibility
+            format
           }],
           warnings: [
             imageFormat === 'vector' ? 'Vector output (SVG format) - scalable and print-ready' : undefined,
