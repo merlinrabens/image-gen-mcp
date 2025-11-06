@@ -53,11 +53,10 @@ export class RecraftProvider extends ImageProvider {
       supportedModels: ['recraftv3'],
       notes: [
         '#1 globally ranked model (ELO 1172, 72% win rate)',
-        'Unique vector generation capability (SVG output)',
-        'Perfect text rendering (guaranteed flawless)',
-        'Superior anatomical accuracy',
+        '⚠️  EXPERIMENTAL: API parameters still being verified',
+        'Perfect text rendering capability (when API is finalized)',
         'Best for logos, branding, graphic design, text-heavy images',
-        'Supports both raster and vector outputs'
+        'Vector generation support planned'
       ]
     };
   }
@@ -81,6 +80,23 @@ export class RecraftProvider extends ImageProvider {
           ? 'vector'
           : 'raster';
 
+        // Determine size preset based on dimensions
+        const width = input.width || 1024;
+        const height = input.height || 1024;
+        let sizePreset = 'square_hd'; // default
+
+        if (width === height) {
+          sizePreset = width >= 1024 ? 'square_hd' : 'square';
+        } else if (width > height) {
+          // Landscape
+          const ratio = width / height;
+          sizePreset = ratio > 1.5 ? 'landscape_16_9' : 'landscape_4_3';
+        } else {
+          // Portrait
+          const ratio = height / width;
+          sizePreset = ratio > 1.5 ? 'portrait_16_9' : 'portrait_4_3';
+        }
+
         const response = await fetch(`${this.baseUrl}/images/generations`, {
           method: 'POST',
           headers: {
@@ -89,10 +105,8 @@ export class RecraftProvider extends ImageProvider {
           },
           body: JSON.stringify({
             prompt: input.prompt,
-            style: 'realistic', // Options: realistic, digital_illustration, vector_illustration
-            n: 1,
-            size: `${input.width || 1024}x${input.height || 1024}`,
-            response_format: outputFormat
+            style: outputFormat === 'vector' ? 'vector_illustration' : 'realistic_image',
+            size: sizePreset
           }),
           signal: controller.signal
         });
