@@ -730,57 +730,110 @@ image-gen-mcp-server/
 - **Provider Pattern**: Pluggable adapters with abstract base class
 - **Minimal Dependencies**: Only essential packages for lean deployment
 
-## Use Case Examples
+## Real-World Use Cases
 
-### Social Media Carousels
+### 🛍️ E-Commerce Product Photography
 ```javascript
-// Generate consistent character across multiple slides
+// Generate professional product shots without expensive photography
+const productShot = await generate({
+  prompt: "Professional product photography of luxury smartwatch on marble surface, studio lighting, 4K quality",
+  provider: "BFL",  // Ultra-high resolution photorealism
+  width: 2048,
+  height: 2048
+});
+
+// Change background for different campaigns
+const lifestyleShot = await edit({
+  prompt: "Place on wooden desk with plants and natural window lighting",
+  baseImage: productShot.images[0].path,
+  provider: "GEMINI"  // Excellent at complex scene transformations
+});
+```
+
+### 🎨 Marketing Campaign Assets
+```javascript
+// Generate poster with perfect text rendering
+const summerSale = await generate({
+  prompt: "Professional marketing poster with headline 'Summer Sale 50% OFF' and subtext 'Limited Time Only', beach theme with vibrant colors",
+  provider: "RECRAFT",  // #1 for text rendering
+  width: 1024,
+  height: 1024
+});
+
+// Create matching social media variants
+const instagramPost = await edit({
+  prompt: "Crop to square format and add 'Shop Now' button at bottom",
+  baseImage: summerSale.images[0].path,
+  provider: "OPENAI"
+});
+```
+
+### 🏢 Brand Identity & Logos
+```javascript
+// Design startup logo with text
+const logo = await generate({
+  prompt: "Modern tech startup logo with text 'ACME', clean minimalist style with geometric icon",
+  provider: "RECRAFT",  // Perfect text + vector output (SVG)
+  width: 1024,
+  height: 1024
+});
+
+// Generate alternative poster variant
+const poster = await generate({
+  prompt: "Vintage poster design with text 'SUMMER FESTIVAL 2025' in bold retro typography",
+  provider: "IDEOGRAM",  // Industry-leading text rendering
+  model: "V_3"
+});
+```
+
+### 📱 Social Media Content Pipeline
+```javascript
+// Generate consistent brand mascot
 const mascot1 = await generate({
-  prompt: "Friendly robot mascot introducing a product",
-  provider: "LEONARDO"
+  prompt: "Friendly robot mascot waving hello, consistent character design for social media",
+  provider: "LEONARDO",  // Best for character consistency
+  seed: 42  // Same seed ensures consistency
 });
+
 const mascot2 = await generate({
-  prompt: "Same friendly robot mascot explaining features",
-  provider: "LEONARDO"
+  prompt: "Same friendly robot mascot explaining features, consistent character design",
+  provider: "LEONARDO",
+  seed: 42  // Reuse seed for carousel consistency
 });
 ```
 
-### Marketing Materials
+### ⚡ Rapid Design Iteration
 ```javascript
-// Logo with text
-await generate({
-  prompt: "Modern tech startup logo with text 'InnovateCo'",
-  provider: "IDEOGRAM"
-});
+// Ultra-fast concept generation for client review
+const concepts = await Promise.all([
+  generate({ prompt: "Option A: Modern minimal design", provider: "FAL" }),
+  generate({ prompt: "Option B: Bold colorful design", provider: "FAL" }),
+  generate({ prompt: "Option C: Elegant luxury design", provider: "FAL" })
+]);
+// All 3 concepts generated in under 5 seconds!
 
-// Product shots
-await generate({
-  prompt: "Professional product photography of smartphone",
-  provider: "BFL"
+// Refine winning concept with high quality
+const final = await generate({
+  prompt: "Refined version of Option C with luxury aesthetic",
+  provider: "BFL"  // Production-quality output
 });
 ```
 
-### Rapid Prototyping
+### 🎬 Content Creator Workflow
 ```javascript
-// Ultra-fast iteration
-await generate({
-  prompt: "Quick wireframe sketch of mobile app",
-  provider: "FAL"  // Returns in 50-300ms!
-});
-```
-
-### Post-Processing Pipeline
-```javascript
-// Generate then edit
-const image = await generate({
-  prompt: "Product on white background",
-  provider: "auto"
+// Generate YouTube thumbnail with text
+const thumbnail = await generate({
+  prompt: "Eye-catching YouTube thumbnail with bold text 'TOP 10 TIPS', vibrant background",
+  provider: "IDEOGRAM",
+  width: 1920,
+  height: 1080
 });
 
+// Remove background for overlay effects
 const transparent = await edit({
-  prompt: "Remove background",
-  baseImage: image.dataUrl,
-  provider: "CLIPDROP"
+  prompt: "Remove background, keep only the main subject",
+  baseImage: thumbnail.images[0].path,
+  provider: "CLIPDROP"  // Specialized background removal
 });
 ```
 
