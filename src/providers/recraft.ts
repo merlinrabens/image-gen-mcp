@@ -53,10 +53,10 @@ export class RecraftProvider extends ImageProvider {
       supportedModels: ['recraftv3'],
       notes: [
         '#1 globally ranked model (ELO 1172, 72% win rate)',
-        '⚠️  EXPERIMENTAL: API parameters still being verified',
-        'Perfect text rendering capability (when API is finalized)',
+        'Perfect text rendering capability',
         'Best for logos, branding, graphic design, text-heavy images',
-        'Vector generation support planned'
+        'Supports both realistic and illustration styles',
+        'Vector generation support available'
       ]
     };
   }
@@ -73,28 +73,28 @@ export class RecraftProvider extends ImageProvider {
       const controller = this.createTimeout(45000); // 45s timeout for quality generation
 
       try {
-        // Determine output format: default to raster unless vector is specified in prompt
-        const outputFormat = input.prompt.toLowerCase().includes('vector') ||
-                            input.prompt.toLowerCase().includes('svg') ||
-                            input.prompt.toLowerCase().includes('scalable')
-          ? 'vector'
-          : 'raster';
-
-        // Determine size preset based on dimensions
+        // Determine dimensions
         const width = input.width || 1024;
         const height = input.height || 1024;
-        let sizePreset = 'square_hd'; // default
+        const size = `${width}x${height}`;
 
-        if (width === height) {
-          sizePreset = width >= 1024 ? 'square_hd' : 'square';
-        } else if (width > height) {
-          // Landscape
-          const ratio = width / height;
-          sizePreset = ratio > 1.5 ? 'landscape_16_9' : 'landscape_4_3';
-        } else {
-          // Portrait
-          const ratio = height / width;
-          sizePreset = ratio > 1.5 ? 'portrait_16_9' : 'portrait_4_3';
+        // Build request body with required parameters only
+        // Model: recraftv3 is the latest Recraft V3 model
+        const requestBody: any = {
+          prompt: input.prompt,
+          size: size,
+          model: 'recraftv3',
+          response_format: 'url',
+          n: 1
+        };
+
+        // Only add style if it's a vector/illustration request
+        // Default realistic images don't need explicit style
+        const promptLower = input.prompt.toLowerCase();
+        if (promptLower.includes('vector') || promptLower.includes('svg')) {
+          requestBody.style = 'vector_illustration';
+        } else if (promptLower.includes('digital art') || promptLower.includes('illustration')) {
+          requestBody.style = 'digital_illustration';
         }
 
         const response = await fetch(`${this.baseUrl}/images/generations`, {
@@ -103,11 +103,7 @@ export class RecraftProvider extends ImageProvider {
             'Authorization': `Bearer ${this.apiKey}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({
-            prompt: input.prompt,
-            style: outputFormat === 'vector' ? 'vector_illustration' : 'realistic_image',
-            size: sizePreset
-          }),
+          body: JSON.stringify(requestBody),
           signal: controller.signal
         });
 
