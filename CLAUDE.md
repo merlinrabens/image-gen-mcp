@@ -371,28 +371,57 @@ headers: {
 ## MCP Protocol Specifics
 
 ### Tool Registration
-Tools are registered in `index.ts`:
+Tools are registered in `index.ts` following MCP best practices:
 ```typescript
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
     {
-      name: 'image.generate',
-      description: 'Generate images from text prompts',
-      inputSchema: zodToJsonSchema(GenerateInputSchema)
+      name: 'image_generate',  // Snake_case per MCP standard
+      description: '...',      // Comprehensive description with examples
+      inputSchema: zodToJsonSchema(GenerateInputSchema),
+      annotations: {          // Tool behavior hints for LLMs
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true
+      }
     }
   ]
 }));
 ```
+
+### Tool Naming Convention
+Following MCP best practices for Node/TypeScript:
+- Format: `{service}_{action}_{resource}` in snake_case
+- Tools: `image_health_ping`, `image_config_providers`, `image_generate`, `image_edit`
+- Prevents naming conflicts with other MCP servers
 
 ### Stdio Transport
 - Required for Claude Desktop integration
 - No console.log/error allowed (breaks JSON-RPC)
 - All logging through logger utility to stderr
 
-### Response Format
-- Images returned as data URLs (base64)
-- Warning for images > 5MB
-- Include provider and model in response
+### Response Format Options
+Tools support dual response formats via `response_format` parameter:
+
+**JSON Format** (default):
+- Structured, machine-readable data
+- File paths to saved images
+- Provider and model metadata
+- Warnings array
+
+**Markdown Format**:
+- Human-readable formatted text
+- Headers and bullet points
+- File size in KB
+- Ideal for LLM consumption
+
+**Character Limit**: Responses are truncated at 25,000 characters per MCP best practices
+
+**Example Response**:
+- Images saved to disk (not base64 in response)
+- File paths returned instead of large data URLs
+- Automatic cleanup of old files (>1 hour)
 
 ## Known Issues & Gotchas
 

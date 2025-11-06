@@ -2,6 +2,8 @@
 
 A production-ready Model Context Protocol (MCP) server for multi-provider image generation with intelligent provider selection, enterprise-grade security, and comprehensive testing.
 
+**Package**: `@merlinrabens/image-gen-mcp-server`
+
 ## Features
 
 ### 🎨 **9 Leading AI Image Providers**
@@ -49,13 +51,13 @@ A production-ready Model Context Protocol (MCP) server for multi-provider image 
 The easiest way to use this MCP server is via NPM:
 
 ```bash
-npx @merlinrabens/image-gen-mcp
+npx @merlinrabens/image-gen-mcp-server
 ```
 
 Or install globally:
 
 ```bash
-npm install -g @merlinrabens/image-gen-mcp
+npm install -g @merlinrabens/image-gen-mcp-server
 ```
 
 ### Configuration
@@ -79,9 +81,9 @@ Add the MCP server to your MCP client configuration. The exact location depends 
 ```json
 {
   "mcpServers": {
-    "image-gen-mcp": {
+    "image-gen-mcp-server": {
       "command": "npx",
-      "args": ["-y", "@merlinrabens/image-gen-mcp"],
+      "args": ["-y", "@merlinrabens/image-gen-mcp-server"],
       "env": {
         "OPENAI_API_KEY": "sk-...",
         "STABILITY_API_KEY": "sk-...",
@@ -127,9 +129,9 @@ Get your API keys from:
 
 After configuration, restart your MCP client and test:
 
-1. Check server status: "Check image-gen-mcp status with health.ping"
-2. List configured providers: "List available image-gen-mcp providers"
-3. Generate your first image: "Generate a serene mountain landscape"
+1. Check server status: "Check image-gen-mcp-server status with image_health_ping"
+2. List configured providers: "List available image-gen-mcp-server providers using image_config_providers"
+3. Generate your first image: "Generate a serene mountain landscape using image_generate"
 
 ## Development Setup
 
@@ -138,8 +140,8 @@ For contributors or local development:
 ### 1. Clone Repository
 
 ```bash
-git clone https://github.com/merlinrabens/image-gen-mcp.git
-cd image-gen-mcp
+git clone https://github.com/merlinrabens/image-gen-mcp-server.git
+cd image-gen-mcp-server
 ```
 
 ### 2. Install Dependencies
@@ -170,9 +172,9 @@ For development with hot reload:
 ```json
 {
   "mcpServers": {
-    "image-gen-mcp": {
+    "image-gen-mcp-server": {
       "command": "npx",
-      "args": ["tsx", "/absolute/path/to/image-gen-mcp/src/index.ts"],
+      "args": ["tsx", "/absolute/path/to/image-gen-mcp-server/src/index.ts"],
       "env": {
         "OPENAI_API_KEY": "sk-...",
         "DEFAULT_PROVIDER": "auto"
@@ -204,9 +206,9 @@ Configure where images are saved using the `IMAGE_OUTPUT_DIR` environment variab
 ```json
 {
   "mcpServers": {
-    "image-gen-mcp": {
+    "image-gen-mcp-server": {
       "command": "npx",
-      "args": ["-y", "@merlinrabens/image-gen-mcp@latest"],
+      "args": ["-y", "@merlinrabens/image-gen-mcp-server@latest"],
       "env": {
         "OPENAI_API_KEY": "sk-...",
         // Optional: Change image storage location
@@ -232,15 +234,15 @@ Old images (>1 hour) are automatically cleaned up to prevent disk space issues. 
 
 ## Available Tools
 
-### `health.ping`
+### `image_health_ping`
 Check server status - no configuration required.
 
 ```
-Request: health.ping()
+Request: image_health_ping()
 Response: "ok"
 ```
 
-### `config.providers`
+### `image_config_providers`
 List all providers and their configuration status.
 
 ```
@@ -259,30 +261,47 @@ Response: [
 ]
 ```
 
-### `image.generate`
+### `image_generate`
 Generate images from text prompts.
 
 ```
 Request: {
   "prompt": "A serene mountain landscape at sunset",
-  "provider": "auto",     // Or specify: OPENAI, LEONARDO, FAL, etc.
-  "width": 1024,          // Optional
-  "height": 1024,         // Optional
-  "model": "dall-e-3",    // Optional
-  "seed": 12345          // Optional
+  "provider": "auto",         // Or specify: OPENAI, LEONARDO, FAL, etc.
+  "width": 1024,              // Optional
+  "height": 1024,             // Optional
+  "model": "dall-e-3",        // Optional
+  "seed": 12345,              // Optional
+  "response_format": "json"   // Optional: "json" (default) or "markdown"
 }
 
-Response: {
+Response (JSON format):
+{
   "images": [{
-    "dataUrl": "data:image/png;base64,...",
-    "format": "png"
+    "path": "/path/to/.image-gen-mcp/image.png",
+    "format": "png",
+    "size": 123456
   }],
   "provider": "OPENAI",
-  "model": "dall-e-3"
+  "model": "dall-e-3",
+  "note": "Images saved to disk due to size."
 }
+
+Response (Markdown format):
+# Image Generation Result
+
+**Provider**: OPENAI
+**Model**: dall-e-3
+
+## Generated Images (1)
+
+### Image 1
+- **Path**: `/path/to/.image-gen-mcp/image.png`
+- **Format**: png
+- **Size**: 120.45 KB
 ```
 
-### `image.edit`
+### `image_edit`
 Edit existing images with text prompts. Supports multiple providers including OpenAI, Stability, Ideogram, BFL, Gemini, and Clipdrop.
 
 The `baseImage` and `maskImage` fields support:
@@ -295,8 +314,11 @@ Request: {
   "prompt": "Add a rainbow to the sky",
   "baseImage": "/path/to/image.png",         // Can be file path or data URL
   "maskImage": "/path/to/mask.png",          // Optional (file path or data URL)
-  "provider": "OPENAI"                       // Optional (auto-selects if not specified)
+  "provider": "OPENAI",                      // Optional (auto-selects if not specified)
+  "response_format": "json"                  // Optional: "json" (default) or "markdown"
 }
+
+Response: Same format as image_generate (JSON or Markdown based on response_format)
 ```
 
 ## Provider Examples
@@ -516,7 +538,7 @@ npm test
 
 ### Project Structure
 ```
-image-gen-mcp/
+image-gen-mcp-server/
 ├── src/
 │   ├── index.ts           # MCP server entry
 │   ├── config.ts          # Provider management
@@ -626,7 +648,7 @@ MIT
 2. Add the MCP server to your MCP client config (see [Configuration](#configuration) section)
 3. Add your API keys to the `env` field in the config
 4. Restart your MCP client (Claude Desktop, Claude Code, Cursor, etc.)
-5. Test the server: "Check image-gen-mcp status with health.ping"
-6. Generate your first image: "Generate a serene mountain landscape"
+5. Test the server: "Check image-gen-mcp-server status with image_health_ping"
+6. Generate your first image: "Generate a serene mountain landscape using image_generate"
 
 For local development or contributions, see the [Development Setup](#development-setup) section.
